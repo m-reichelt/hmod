@@ -26,7 +26,7 @@ dependencies = [
 tests = [
     "pytest",
     "ngsolve>=6.2",
-    "hilbertwrapper @ git+https://gitlab.tugraz.at/applied_math/modified_hilbert_transformation.git",
+    #"hilbertwrapper @ git+https://gitlab.tugraz.at/applied_math/modified_hilbert_transformation.git", #install this manually for tests, as it cannot be published to pypi
 ]
 
 
