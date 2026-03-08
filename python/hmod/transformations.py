@@ -16,9 +16,13 @@ class LegendreToHilbertBase(LinearOperator):
         return result
 
     def apply_fft(self, legendre_coeffs : np.ndarray) -> np.ndarray:
+        #make sure, that we have in fact an 0-dimensional array
+        legendre_coeffs = np.squeeze(legendre_coeffs)
         return np.array(self._legendre_to_hilbert.apply_fft(legendre_coeffs))
 
     def apply_fft_transpose(self, hilbert_coeffs : np.ndarray) -> np.ndarray:
+        #make sure, that we have in fact an 0-dimensional array
+        hilbert_coeffs = np.squeeze(hilbert_coeffs)
         return np.array(self._legendre_to_hilbert.apply_ftt_transpose(hilbert_coeffs))
 
     def get_compound_extension_matrix(self):

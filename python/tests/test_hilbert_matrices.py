@@ -89,6 +89,27 @@ def test_I_H_against_dense():
     diff = np.linalg.norm(diff_vec)
     assert diff < 1e-4
 
+def test_mat_mat():
+    import hilbertWrapper.hilbertWrapper as hw
+    f_analytic = lambda t: np.cos(2 * np.pi * t+5)
+    nt = 5
+    T = 1.0
+    tpoints = np.linspace(0, T, nt+1)
+    polynomial_degree_trial = 1
+    polynomial_degree_test = 1
+    n_modes = 8*nt
+    Mt_fft = Operator_I_H_Lagrange_Lagrange(nmodes=n_modes, nt=nt, polynomial_degree_trial=polynomial_degree_trial, polynomial_degree_test=polynomial_degree_test)
+    #do it also via rhs
+    rhs_builder = Rhs_I_H_Lagrange_Lagrange(nmodes=n_modes, nt=nt, polynomial_degree_rhs=polynomial_degree_trial, polynomial_degree_test=polynomial_degree_test)
+    #build the dense dt_H matrix using hilbert wrapper
+    Mth = hw.get_hilbert_mass(tpoints)
+    #get a random vector
+    np.random.seed(0)
+    x = np.random.rand(nt*(polynomial_degree_trial)+1, 5).astype(np.float64)
+    I_H_fft = Mt_fft @ x
+    I_H_dense = Mth @ x
+    I_H_rhs = rhs_builder @ (Mt_fft.Ttrial @ x)
+
 
 if __name__ == "__main__":
     pytest.main([__file__])
