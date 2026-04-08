@@ -1,234 +1,100 @@
-import numpy as np
-import scipy.sparse
+import scipy.sparse as sparse
 from scipy.sparse.linalg import LinearOperator
+import numpy as np
+import hmod.block_operations as block_ops
 
 
-class Base_Operator_Sine_Sine_Legendre(LinearOperator):
-    """ Base class for operator with using sine base on both trial and test side."""
-    def __init__(self, fourier_factors : np.ndarray, nmodes: int, nt : int, polynomial_degree_trial : int, polynomial_degree_test : int):
-        from hmod.transformations import LegendreToHilbertBase
-        self.nmodes = nmodes
+class DST_IV(LinearOperator):
+    def __init__(self, nt: int, workers=-1):
         self.nt = nt
-        #get the class containing the transformation for trial functions
-        self.TrialTransform = LegendreToHilbertBase(nmodes, nt, polynomial_degree_trial, basis_type='sine') #base transform on the right
-        #get the class containing the transformation for test functions
-        self.TestTransform = LegendreToHilbertBase(nmodes, nt, polynomial_degree_test, basis_type='sine') #base transform on the left
-        #get the two extension matrices
-        self.ExtensionTrial = self.TrialTransform.get_compound_extension_matrix() #extension for trial
-        self.ExtensionTest = self.TestTransform.get_compound_extension_matrix() #extension for test
-        self.ExtensionTest_T = self.ExtensionTest.transpose()
-        #get the two filter matrices
-        self.FilterTrial = self.TrialTransform.get_compound_filter_matrix() #filter for trial
-        self.FilterTest = self.TestTransform.get_compound_filter_matrix() #filter for test
-        #fourier factor times 0.5 for the integral
-        F = scipy.sparse.diags(fourier_factors) *0.5
-        #F = scipy.sparse.identity(nmodes)*0.5
-        #put together the kernel matrix
-        self.K = self.ExtensionTest_T @ self.FilterTest.transpose() @ F @ self.FilterTrial @ self.ExtensionTrial #todo: sum up the operators better
-        n_rows = nt*(polynomial_degree_test+1)
-        n_cols = nt*(polynomial_degree_trial+1)
-        shape = (n_rows, n_cols)
-        super().__init__(dtype=None, shape=shape)
+        self.workers = workers
+        shape = (nt, nt)
+        super().__init__(dtype=np.float64, shape=shape)
+
+    def _matmat(self, x):
+        from scipy.fft import dst
+        return dst(x, type=4, axis=0, workers=self.workers)
+
+    def _rmatmat(self, x):
+        return self._matmat(x)  #dst-iv is self-adjoint
 
 
-    def _matvec(self, x):
-        #x_legendre = self.Ttrial @ x
-        x_legendre = x
-        x_f = self.TrialTransform.apply_fft(x_legendre)
-        y_f = self.K @ x_f
-        y_legendre = self.TestTransform.apply_fft_transpose(y_f)
-        #y = self.Ttest.transpose() @ y_legendre
-        y = y_legendre
-        fac = (1.0/self.nt)**2
-        return y*fac
-
-    def _adjoint(self, x):
-        #x_legendre = self.Ttest @ x
-        x_legendre = x
-        x_f = self.TestTransform.apply_fft(x_legendre)
-        y_f = self.K.transpose() @ x_f
-        y_legendre = self.TrialTransform.apply_fft_transpose(y_f)
-        #y = self.Ttrial.transpose() @ y_legendre
-        y = y_legendre
-        fac = (1.0/self.nt)**2
-        return y*fac
-
-
-class Base_Operator_Sine_Sine_Lagrange_Lagrange(LinearOperator):
-    def __init__(self, fourier_factors : np.ndarray, nmodes: int, nt : int, polynomial_degree_trial : int, polynomial_degree_test : int):
-        from hmod.polynomial_bases import get_lagrange_to_legendre_matrix
-        #to legendre basis for trial and test functions
-        self.Ttrial = get_lagrange_to_legendre_matrix(polynomial_degree_trial, nt) #base transform on the right (to legendre basis)
-        self.Ttest = get_lagrange_to_legendre_matrix(polynomial_degree_test, nt) #base transform on the left (to legendre basis)
-        self.legendre_op = Base_Operator_Sine_Sine_Legendre(fourier_factors, nmodes, nt, polynomial_degree_trial, polynomial_degree_test)
-        nrows = self.Ttest.shape[1]
-        ncols = self.Ttrial.shape[1]
-        shape = (nrows, ncols)
-        super().__init__(dtype=None, shape=shape)
-
-    def _matvec(self, x):
-        x_legendre = self.Ttrial @ x
-        y_legendre = self.legendre_op @ x_legendre
-        y = self.Ttest.transpose() @ y_legendre
-        return y
-
-    def _adjoint(self, x):
-        x_legendre = self.Ttest @ x
-        y_legendre = self.legendre_op.transpose() @ x_legendre
-        y = self.Ttrial.transpose() @ y_legendre
-        return y
-
-
-
-class Base_Operator_Cosine_Sine_Legendre(LinearOperator):
-    """ Base class for operator with using cosine base on trial side and sine base on test side."""
-    def __init__(self, fourier_factors : np.ndarray, nmodes: int, nt : int, polynomial_degree_trial : int, polynomial_degree_test : int):
-        from hmod.transformations import LegendreToHilbertBase
-        self.nmodes = nmodes
+class DCT_IV(LinearOperator):
+    def __init__(self, nt: int, workers=-1):
         self.nt = nt
-        #get the class containing the transformation for trial functions
-        self.TrialTransform = LegendreToHilbertBase(nmodes, nt, polynomial_degree_trial, basis_type='cosine') #base transform on the right
-        #get the class containing the transformation for test functions
-        self.TestTransform = LegendreToHilbertBase(nmodes, nt, polynomial_degree_test, basis_type='sine') #base transform on the left
-        #get the two extension matrices
-        self.ExtensionTrial = self.TrialTransform.get_compound_extension_matrix() #extension for trial
-        self.ExtensionTest = self.TestTransform.get_compound_extension_matrix() #extension for test
-        self.ExtensionTest_T = self.ExtensionTest.transpose()
-        #get the two filter matrices
-        self.FilterTrial = self.TrialTransform.get_compound_filter_matrix() #filter for trial
-        self.FilterTest = self.TestTransform.get_compound_filter_matrix() #filter for test
-        #fourier factor times 0.5 for the integral
-        F = scipy.sparse.diags(fourier_factors) *0.5
-        #put together the kernel matrix
-        self.K = self.ExtensionTest_T @ self.FilterTest.transpose() @ F @ self.FilterTrial @ self.ExtensionTrial #todo: sum up the operators better
+        self.workers = workers
+        shape = (nt, nt)
+        super().__init__(dtype=np.float64, shape=shape)
 
-        n_rows = nt*(polynomial_degree_test+1)
-        n_cols = nt*(polynomial_degree_trial+1)
-        shape = (n_rows, n_cols)
-        super().__init__(dtype=None, shape=shape)
+    def _matmat(self, x):
+        from scipy.fft import dct
+        return dct(x, type=4, axis=0, workers=self.workers)
 
-    def _matvec(self, x):
-        #x_legendre = self.Ttrial @ x
-        x_legendre = x
-        x_f = self.TrialTransform.apply_fft(x_legendre)
-        y_f = self.K @ x_f
-        y_legendre = self.TestTransform.apply_fft_transpose(y_f)
-        #y = self.Ttest.transpose() @ y_legendre
-        y = y_legendre
-        fac = (1.0/self.nt)**2
-        return y*fac
-
-    def _adjoint(self, x):
-        #x_legendre = self.Ttest @ x
-        x_legendre = x
-        x_f = self.TestTransform.apply_fft(x_legendre)
-        y_f = self.K.transpose() @ x_f
-        y_legendre = self.TrialTransform.apply_fft_transpose(y_f)
-        #y = self.Ttrial.transpose() @ y_legendre
-        y = y_legendre
-        fac = (1.0/self.nt)**2
-        return y*fac
-
-class Base_Operator_Cosine_Sine_Lagrange_Lagrange(LinearOperator):
-    def __init__(self, fourier_factors : np.ndarray, nmodes: int, nt : int, polynomial_degree_trial : int, polynomial_degree_test : int):
-        from hmod.polynomial_bases import get_lagrange_to_legendre_matrix
-        #to legendre basis for trial and test functions
-        self.Ttrial = get_lagrange_to_legendre_matrix(polynomial_degree_trial, nt) #base transform on the right (to legendre basis)
-        self.Ttest = get_lagrange_to_legendre_matrix(polynomial_degree_test, nt) #base transform on the left (to legendre basis)
-        self.legendre_op = Base_Operator_Cosine_Sine_Legendre(fourier_factors, nmodes, nt, polynomial_degree_trial, polynomial_degree_test)
-        nrows = self.Ttest.shape[1]
-        ncols = self.Ttrial.shape[1]
-        shape = (nrows, ncols)
-        super().__init__(dtype=None, shape=shape)
-
-    def _matvec(self, x):
-        x_legendre = self.Ttrial @ x
-        y_legendre = self.legendre_op @ x_legendre
-        y = self.Ttest.transpose() @ y_legendre
-        return y
-
-    def _adjoint(self, x):
-        x_legendre = self.Ttest @ x
-        y_legendre = self.legendre_op.transpose() @ x_legendre
-        y = self.Ttrial.transpose() @ y_legendre
-        return y
-
-class Base_Operator_Cosine_Sine_Legendre_Lagrange(LinearOperator):
-    def __init__(self, fourier_factors : np.ndarray, nmodes: int, nt : int, polynomial_degree_trial : int, polynomial_degree_test : int):
-        from hmod.polynomial_bases import get_lagrange_to_legendre_matrix
-        #to legendre basis for test functions
-        self.Ttest = get_lagrange_to_legendre_matrix(polynomial_degree_test, nt) #base transform on the left (to legendre basis)
-        self.legendre_op = Base_Operator_Cosine_Sine_Legendre(fourier_factors, nmodes, nt, polynomial_degree_trial, polynomial_degree_test)
-        nrows = self.Ttest.shape[1]
-        ncols = nt*(polynomial_degree_trial+1)
-        shape = (nrows, ncols)
-        super().__init__(dtype=None, shape=shape)
-
-    def _matvec(self, x):
-        x_legendre = x
-        y_legendre = self.legendre_op @ x_legendre
-        y = self.Ttest.transpose() @ y_legendre
-        return y
-
-    def _adjoint(self, x):
-        x_legendre = self.Ttest @ x
-        y_legendre = self.legendre_op.transpose() @ x_legendre
-        y = y_legendre
-        return y
-
-class Operator_dt_H_Lagrange_Lagrange(Base_Operator_Sine_Sine_Lagrange_Lagrange):
-    def __init__(self, nmodes: int, nt : int, polynomial_degree_trial : int, polynomial_degree_test : int):
-        fourier_factors = np.array([(0.5+k)*np.pi for k in range(nmodes)])
-        super().__init__(fourier_factors, nmodes, nt, polynomial_degree_trial, polynomial_degree_test)
+    def _rmatmat(self, x):
+        return self._matmat(x)  #dct-iv is self-adjoint
 
 
-class Operator_I_H_Legendre_Lagrange(Base_Operator_Cosine_Sine_Legendre_Lagrange):
-    def __init__(self, nmodes: int, nt : int, polynomial_degree_trial : int, polynomial_degree_test : int):
-        fourier_factors = np.array([1. for k in range(nmodes)])
-        super().__init__(fourier_factors, nmodes, nt, polynomial_degree_trial, polynomial_degree_test)
+def get_trial_transform(pol_deg, nt, workers=-1):
+    from hmod.block_operations import BlockLinearOperator
+    blocks = [[None for _ in range(pol_deg + 1)] for _ in range(pol_deg + 1)]
+
+    for m in range(pol_deg + 1):
+        if m % 2 == 0:
+            fac = np.power(-1, m // 2)
+            blocks[m][m] = fac * DCT_IV(nt, workers=workers)
+        else:
+            fac = np.power(-1, (m + 1) // 2)
+            blocks[m][m] = fac * DST_IV(nt, workers=workers)
+
+    block_operator = block_ops.BlockLinearOperator(blocks)
+    return block_operator
+
+def get_test_transform(pol_deg, nt, workers=-1):
+    from hmod.block_operations import BlockLinearOperator
+    blocks = [[None for _ in range(pol_deg + 1)] for _ in range(pol_deg + 1)]
+
+    for m in range(pol_deg + 1):
+        if m % 2 == 0:
+            fac = np.power(-1, m // 2)
+            blocks[m][m] = fac * DST_IV(nt, workers=workers)
+        else:
+            fac = np.power(-1, (m - 1) // 2)
+            blocks[m][m] = fac * DCT_IV(nt, workers=workers)
+
+    block_operator = block_ops.BlockLinearOperator(blocks)
+    return block_operator
+
+def first_branch_sum(diagonal_index : int, nt : int, pol_deg_trial : int, pol_deg_test : int, workers : int = -1):
+    assert 0 <= diagonal_index < nt, "Diagonal index must be between 0 and nt-1"
+    from scipy.special import spherical_jn as jn
+    alpha_k = lambda k : np.pi*(2*k+1)/(4*nt)
+    alpha_q = lambda q : alpha_k(2*q*nt+diagonal_index)
+    nmodes = int(1e5)
+    summand = lambda q : jn(pol_deg_test, alpha_q(q))*jn(pol_deg_trial, alpha_q(q))
+    #sum in reversed order
+    q_vals = np.arange(nmodes)[::-1]
+    return np.sum(summand(q_vals))/(nt**2)
+
+def second_branch_sum(diagonal_index : int, nt : int, pol_deg_trial : int, pol_deg_test : int, workers : int = -1):
+    assert 0 <= diagonal_index < nt, "Diagonal index must be between 0 and nt-1"
+    from scipy.special import spherical_jn as jn
+    alpha_k = lambda k : np.pi*(2*k+1)/(4*nt)
+    alpha_q = lambda q : alpha_k(2*nt*(q+1)-1-diagonal_index)
+    nmodes = int(1e5)
+    summand = lambda q : jn(pol_deg_test, alpha_q(q))*jn(pol_deg_trial, alpha_q(q))
+    #sum in reversed order
+    q_vals = np.arange(nmodes)[::-1]
+    return np.sum(summand(q_vals))/(nt**2)
 
 
-class Operator_I_H_Lagrange_Lagrange(Base_Operator_Cosine_Sine_Lagrange_Lagrange):
-    def __init__(self, nmodes: int, nt : int, polynomial_degree_trial : int, polynomial_degree_test : int):
-        fourier_factors = np.array([1. for k in range(nmodes)])
-        super().__init__(fourier_factors, nmodes, nt, polynomial_degree_trial, polynomial_degree_test)
+def get_kernel_matrix_for_degrees(nt : int, pol_deg_trial : int, pol_deg_test : int):
+    fac = -1.
+    if pol_deg_trial % 2 != pol_deg_test % 2:
+        fac = 1.
+    entry_i = lambda i : first_branch_sum(i, nt, pol_deg_trial, pol_deg_test) + fac*second_branch_sum(i, nt, pol_deg_trial, pol_deg_test)
+    return sparse.diags([entry_i(i) for i in range(nt)], format='csr')
 
 
-class Rhs_I_H_Lagrange_Lagrange(LinearOperator):
-    def __init__(self, nmodes: int, nt : int, polynomial_degree_rhs : int, polynomial_degree_test : int):
-        from hmod.transformations import LegendreToHilbertBase
-        from hmod.polynomial_bases import get_lagrange_to_legendre_matrix
-        self.nmodes = nmodes
-        self.nt = nt
-        #to legendre basis for trial function
-        self.Ttest = get_lagrange_to_legendre_matrix(polynomial_degree_test, nt) #base transform on the right (to legendre basis)
-        #get the class containing the transformation for trial functions
-        self.BaseTransform = LegendreToHilbertBase(nmodes, nt, polynomial_degree_test, basis_type='sine') #base transform on the right
-        #get the class containing the transformation for rhs functions
-        self.RhsTransform = LegendreToHilbertBase(nmodes, nt, polynomial_degree_rhs, basis_type='cosine') #base transform on the right
-        #get the two extension matrices
-        self.ExtensionRhs = self.RhsTransform.get_compound_extension_matrix() #extension for rhs
-        self.ExtensionTest = self.BaseTransform.get_compound_extension_matrix() #extension for test
-        self.ExtensionTest_T = self.ExtensionTest.transpose()
-        #get the two filter matrices
-        self.FilterRhs = self.RhsTransform.get_compound_filter_matrix() #filter for rhs
-        self.FilterTest = self.BaseTransform.get_compound_filter_matrix() #filter for test
-        #fourier factor is the identity
-        I = scipy.sparse.identity(nmodes) * 0.5 #factor 0.5 for the integral
-        #put together the kernel matrix
-        self.K = self.ExtensionTest_T @ self.FilterTest.transpose() @ I @ self.FilterRhs @ self.ExtensionRhs #todo: sum up the operators better
-
-        n_rows = self.Ttest.shape[1]
-        n_cols = nt*(polynomial_degree_rhs+1)
-
-        shape = (n_rows, n_cols)
-
-        super().__init__(dtype=None, shape=shape)
-
-    def _matvec(self, rhs_legendre_dofs : np.ndarray):
-        r_f = self.RhsTransform.apply_fft(rhs_legendre_dofs)
-        y_f = self.K @ r_f
-        rhs_legendre = self.BaseTransform.apply_fft_transpose(y_f)
-        rhs = self.Ttest.transpose() @ rhs_legendre
-        fac = (1.0/self.nt)**2
-        return rhs*fac
+def get_kernel_matrix(nt : int, pol_deg_trial : int, pol_deg_test : int):
+    blocks = [[get_kernel_matrix_for_degrees(nt, n, m) for n in range(pol_deg_trial + 1)] for m in range(pol_deg_test + 1)]
+    return sparse.bmat(blocks, format='csr')
