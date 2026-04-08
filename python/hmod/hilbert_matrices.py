@@ -2,6 +2,7 @@ import scipy.sparse as sparse
 from scipy.sparse.linalg import LinearOperator
 import numpy as np
 import hmod.block_operations as block_ops
+import hmod.standard_matrices as sm
 
 
 class DST_IV(LinearOperator):
@@ -98,3 +99,48 @@ def get_kernel_matrix_for_degrees(nt : int, pol_deg_trial : int, pol_deg_test : 
 def get_kernel_matrix(nt : int, pol_deg_trial : int, pol_deg_test : int):
     blocks = [[get_kernel_matrix_for_degrees(nt, n, m) for n in range(pol_deg_trial + 1)] for m in range(pol_deg_test + 1)]
     return sparse.bmat(blocks, format='csr')
+
+
+
+def get_operator_I_H_legendre_legendre(nt : int, pol_deg_trial : int, pol_deg_test : int, final_time :float):
+    nmodes = int(1e5)
+    fourier_facs = np.ones(nmodes)
+    U = get_trial_transform(pol_deg_trial, nt)
+    T = get_test_transform(pol_deg_test, nt)
+    K = sparse.linalg.aslinearoperator(get_kernel_matrix(nt, pol_deg_trial, pol_deg_test))
+    return (final_time*0.5)*T.H @ K @ U
+
+def get_hilbert_matrix_with_derivatives_legendre_legendre(nt : int, pol_deg_trial : int, pol_deg_test : int,
+                                                          derivatives_trial : int, derivatives_test : int, final_time :float):
+    Mh = get_operator_I_H_legendre_legendre(nt, pol_deg_trial, pol_deg_test, final_time)
+    if derivatives_trial >0 or derivatives_test > 0:
+        raise NotImplementedError("Derivatives not implemented yet")
+
+    return Mh
+
+def get_hilbert_matrix_with_derivatives_legendre_lagrange(nt : int, pol_deg_trial : int, pol_deg_test : int,
+                                                          derivatives_trial : int, derivatives_test : int, final_time :float):
+    K = get_hilbert_matrix_with_derivatives_legendre_legendre(nt, pol_deg_trial
+                                                              , pol_deg_test, derivatives_trial, derivatives_test, final_time)
+    trans = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_test, nt))
+
+    return trans.T @ K
+
+def get_hilbert_matrix_with_derivatives_lagrange_legendre(nt : int, pol_deg_trial : int, pol_deg_test : int,
+                                                          derivatives_trial : int, derivatives_test : int, final_time :float):
+    K = get_hilbert_matrix_with_derivatives_legendre_legendre(nt, pol_deg_trial
+                                                              , pol_deg_test, derivatives_trial, derivatives_test, final_time)
+    trans = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_test, nt))
+
+    return K @ trans
+
+def get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt : int, pol_deg_trial : int, pol_deg_test : int,
+                                                          derivatives_trial : int, derivatives_test : int, final_time :float):
+    K = get_hilbert_matrix_with_derivatives_legendre_legendre(nt, pol_deg_trial
+                                                              , pol_deg_test, derivatives_trial, derivatives_test, final_time)
+    trans = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_test, nt))
+
+    return trans.T @ K @ trans
+
+
+
