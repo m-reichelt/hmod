@@ -1,8 +1,6 @@
 import numpy as np
 import pytest
 import hmod.standard_matrices as sm
-import hmod.hilbert_matrices as hm
-import hmod.matrix_tools as mat_tools
 import hmod.polynomial_bases as pb
 
 def u_analytical(t):
