@@ -129,14 +129,11 @@ def get_lagrange_lagrange_matrix_for_derivatives(polynomial_degree_trial : int, 
 
 
 
-
-
-
 def rhs_quadrature(f, nt : int, polynomial_degree_test : int, T : float, quad_order : int = None) -> np.ndarray:
     """Compute the rhs vector by quadrature."""
     from numpy.polynomial.legendre import leggauss
     from scipy.special import legendre
-    #get quadrature points and weights on [-1,1]+
+    #get quadrature points and weights on [-1,1]
     if quad_order is not None:
         nqp = quad_order
     else:

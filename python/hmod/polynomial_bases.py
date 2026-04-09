@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.sparse as sp
 class LegendreBasis:
     def __init__(self, polynomial_degree : int, nt : int, T : float):
         from hmod.hmod import LegendreBasis
@@ -129,6 +130,41 @@ def get_lagrange_prolongation_matrix(nt_coarse : int, nt_fine : int, polynomial_
     P_csr.eliminate_zeros()
     return P_csr
 
+
+def legendre_derivative_matrix(num_intervals: int, p: int, h: float, square: bool = False):
+    """
+    Global sparse matrix for d/dt on piecewise-Legendre coefficients
+    with degree-major ordering:
+        [u_0(all intervals), u_1(all intervals), ..., u_p(all intervals)]^T
+
+    Uses the standard Legendre basis P_n on each interval.
+
+    Parameters
+    ----------
+    num_intervals : int
+        Number of equal intervals.
+    p : int
+        Polynomial degree on each interval.
+    h : float
+        Interval size.
+    square : bool
+        If False, return the natural rectangular map into degree <= p-1.
+        If True, append one zero block-row to make the matrix square.
+    """
+    nrows_deg = p + 1 if square else p
+    ncols_deg = p + 1
+
+    blocks = [[None for _ in range(ncols_deg)] for _ in range(nrows_deg)]
+
+    scale = 2.0 / h
+    I = sp.eye(num_intervals, format="csr")
+
+    for n in range(ncols_deg):          # input degree
+        for m in range(min(n, nrows_deg)):   # output degree
+            if (n - m) % 2 == 1:
+                blocks[m][n] = scale * (2*m + 1) * I
+
+    return sp.bmat(blocks, format="csr")
 
 
 if __name__ == "__main__":

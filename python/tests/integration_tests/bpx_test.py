@@ -1,8 +1,7 @@
 import pytest
-import scipy
 
 from hmod.preconditioning import BPXPreconditioner
-import hmod.hilbert_matrices as hm
+import hmod.deprecated_hilbert_matrices as hm
 import hmod.standard_matrices as sm
 from hmod.dof_handling import DofRestrictorSymmetric
 import numpy as np
