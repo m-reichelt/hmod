@@ -131,7 +131,7 @@ def get_lagrange_prolongation_matrix(nt_coarse : int, nt_fine : int, polynomial_
     return P_csr
 
 
-def legendre_derivative_matrix(num_intervals: int, p: int, h: float, square: bool = False):
+def get_legendre_derivative_matrix(nt: int, p: int, T: float, square: bool = True):
     """
     Global sparse matrix for d/dt on piecewise-Legendre coefficients
     with degree-major ordering:
@@ -141,12 +141,12 @@ def legendre_derivative_matrix(num_intervals: int, p: int, h: float, square: boo
 
     Parameters
     ----------
-    num_intervals : int
+    nt : int
         Number of equal intervals.
     p : int
         Polynomial degree on each interval.
-    h : float
-        Interval size.
+    T : float
+        Total time interval length.
     square : bool
         If False, return the natural rectangular map into degree <= p-1.
         If True, append one zero block-row to make the matrix square.
@@ -156,20 +156,18 @@ def legendre_derivative_matrix(num_intervals: int, p: int, h: float, square: boo
 
     blocks = [[None for _ in range(ncols_deg)] for _ in range(nrows_deg)]
 
+    h = T / nt
     scale = 2.0 / h
-    I = sp.eye(num_intervals, format="csr")
+    I = sp.eye(nt, format="csr")
 
     for n in range(ncols_deg):          # input degree
+        blocks[n][n] = 0. * I #to be sure that we have at least one matrix in each row
         for m in range(min(n, nrows_deg)):   # output degree
             if (n - m) % 2 == 1:
                 blocks[m][n] = scale * (2*m + 1) * I
 
     return sp.bmat(blocks, format="csr")
 
-
-if __name__ == "__main__":
-    mat = _get_refinement_matrices_on_interval(2)
-    tmp = 0
 
 
 
