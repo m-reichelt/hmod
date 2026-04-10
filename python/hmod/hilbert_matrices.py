@@ -91,7 +91,7 @@ def second_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_
     return np.sum(summand(q_vals)) / (nt ** 2)
 
 
-def get_kernel_matrix_for_degrees(nt: int, pol_deg_trial: int, pol_deg_test: int):
+def get_kernel_matrix_for_degrees_py(nt: int, pol_deg_trial: int, pol_deg_test: int):
     fac = -1.
     if pol_deg_trial % 2 != pol_deg_test % 2:
         fac = 1.
@@ -102,9 +102,11 @@ def get_kernel_matrix_for_degrees(nt: int, pol_deg_trial: int, pol_deg_test: int
 
 
 def get_kernel_matrix(nt: int, pol_deg_trial: int, pol_deg_test: int):
-    blocks = [[get_kernel_matrix_for_degrees(nt, n, m) for n in range(pol_deg_trial + 1)] for m in
+    from hmod.hmod import get_hilbert_kernel_matrix_for_legendre_degrees
+    blocks = [[sparse.diags(get_hilbert_kernel_matrix_for_legendre_degrees(nt, n, m)) for n in range(pol_deg_trial + 1)] for m in
               range(pol_deg_test + 1)]
     return sparse.bmat(blocks, format='csr')
+
 
 
 def get_operator_I_H_legendre_legendre(nt: int, pol_deg_trial: int, pol_deg_test: int, final_time: float):
