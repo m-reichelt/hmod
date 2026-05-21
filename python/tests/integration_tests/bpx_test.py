@@ -51,8 +51,8 @@ def _test_bpx_hybrid_for_settings(mu: float, polynomial_degree: int, n_coarsest:
     import hmod.deprecated_hilbert_matrices as hmd
     AtH = hmd.Operator_dt_H_Lagrange_Lagrange(nmodes, n_finest, polynomial_degree, polynomial_degree)
     MtH = hmd.Operator_I_H_Lagrange_Lagrange(nmodes, n_finest, polynomial_degree, polynomial_degree)
-    AtH = hm.get_hilbert_matrix_with_derivatives_lagrange_lagrange(n_finest, polynomial_degree, polynomial_degree, 1, 0,
-                                                                  T)
+    AtH = hm.get_hilbert_matrix_with_derivatives_lagrange_lagrange(n_finest, polynomial_degree, polynomial_degree, 1, 0, T)
+    MtH = hm.get_hilbert_matrix_with_derivatives_lagrange_lagrange(n_finest, polynomial_degree, polynomial_degree, 0, 0, T)
     KH = AtH + mu * MtH
     AtS = sm.get_lagrange_lagrange_matrix_for_derivatives(polynomial_degree, polynomial_degree, 1, 0, n_finest, T)
     MtS = sm.get_lagrange_lagrange_matrix_for_derivatives(polynomial_degree, polynomial_degree, 0, 0, n_finest, T)

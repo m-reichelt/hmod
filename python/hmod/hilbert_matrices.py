@@ -4,6 +4,8 @@ import numpy as np
 import hmod.block_operations as block_ops
 import hmod.standard_matrices as sm
 import hmod.polynomial_bases as pb
+from scipy.special import factorial, zeta
+
 
 class DST_IV(LinearOperator):
     def __init__(self, nt: int, workers=-1):
@@ -67,7 +69,8 @@ def get_test_transform(pol_deg, nt, workers=-1):
     return block_operator
 
 
-def first_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_test: int, workers: int = -1):
+def first_branch_sum_brute_force(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_test: int,
+                                 workers: int = -1):
     assert 0 <= diagonal_index < nt, "Diagonal index must be between 0 and nt-1"
     from scipy.special import spherical_jn as jn
     alpha_k = lambda k: np.pi * (2 * k + 1) / (4 * nt)
@@ -79,7 +82,8 @@ def first_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_t
     return np.sum(summand(q_vals)) / (nt ** 2)
 
 
-def second_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_test: int, workers: int = -1):
+def second_branch_sum_brute_force(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_test: int,
+                                  workers: int = -1):
     assert 0 <= diagonal_index < nt, "Diagonal index must be between 0 and nt-1"
     from scipy.special import spherical_jn as jn
     alpha_k = lambda k: np.pi * (2 * k + 1) / (4 * nt)
@@ -91,22 +95,123 @@ def second_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_
     return np.sum(summand(q_vals)) / (nt ** 2)
 
 
-def get_kernel_matrix_for_degrees_py(nt: int, pol_deg_trial: int, pol_deg_test: int):
+def get_kernel_matrix_for_degrees_brute_force(nt: int, pol_deg_trial: int, pol_deg_test: int):
     fac = -1.
     if pol_deg_trial % 2 != pol_deg_test % 2:
         fac = 1.
-    entry_i = lambda i: first_branch_sum(i, nt, pol_deg_trial, pol_deg_test) + fac * second_branch_sum(i, nt,
-                                                                                                       pol_deg_trial,
-                                                                                                       pol_deg_test)
+    entry_i = lambda i: first_branch_sum_brute_force(i, nt, pol_deg_trial,
+                                                     pol_deg_test) + fac * second_branch_sum_brute_force(i, nt,
+                                                                                                         pol_deg_trial,
+                                                                                                         pol_deg_test)
+    return sparse.diags([entry_i(i) for i in range(nt)], format='csr')
+
+
+def a_k_12_fun(k: int, m: int):
+    if k > m:
+        return 0.
+    else:
+        numerator = factorial(m + k)
+        denominator = factorial(k) * factorial(m - k) * 2 ** k
+        return numerator / denominator
+
+
+def first_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_test: int):
+    # use shorthand notation for the indices as in paper
+    r = pol_deg_test
+    m = pol_deg_trial
+    a = diagonal_index
+    # define lambdas
+    a_m_i = lambda m, i: (-1) ** i * a_k_12_fun(2 * i, m)
+    b_m_i = lambda m, i: (-1) ** i * a_k_12_fun(2 * i + 1, m)
+    beta_a = np.pi * (2 * a + 1) / (4 * nt)
+    sigma_m_a = lambda m: np.sin(beta_a - m * np.pi / 2)
+    kappa_m_a = lambda m: np.cos(beta_a - m * np.pi / 2)
+    sum_val = 0.
+    for i in range(0, r // 2 + 1):
+        for j in range(0, m // 2 + 1):
+            fac = a_m_i(r, i) * a_m_i(m, j) * sigma_m_a(r) * sigma_m_a(m)
+            arg = 2 * (i + j) + 2
+            zeta_val = zeta(arg, beta_a / np.pi) / np.pi ** arg
+            sum_val += fac * zeta_val
+    for i in range(0, r // 2 + 1):
+        for j in range(0, (m - 1) // 2 + 1):
+            fac = a_m_i(r, i) * b_m_i(m, j) * sigma_m_a(r) * kappa_m_a(m)
+            arg = 2 * (i + j) + 3
+            zeta_val = zeta(arg, beta_a / np.pi) / np.pi ** arg
+            sum_val += fac * zeta_val
+    for i in range(0, (r - 1) // 2 + 1):
+        for j in range(0, m // 2 + 1):
+            fac = b_m_i(r, i) * a_m_i(m, j) * kappa_m_a(r) * sigma_m_a(m)
+            arg = 2 * (i + j) + 3
+            zeta_val = zeta(arg, beta_a / np.pi) / np.pi ** arg
+            sum_val += fac * zeta_val
+    for i in range(0, (r - 1) // 2 + 1):
+        for j in range(0, (m - 1) // 2 + 1):
+            fac = b_m_i(r, i) * b_m_i(m, j) * kappa_m_a(r) * kappa_m_a(m)
+            arg = 2 * (i + j) + 4
+            zeta_val = zeta(arg, beta_a / np.pi) / np.pi ** arg
+            sum_val += fac * zeta_val
+
+    return sum_val / nt ** 2
+
+
+def second_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_test: int):
+    # use shorthand notation for the indices as in paper
+    r = pol_deg_test
+    m = pol_deg_trial
+    a = diagonal_index
+    # define lambdas
+    a_m_i = lambda m, i: (-1) ** i * a_k_12_fun(2 * i, m)
+    b_m_i = lambda m, i: (-1) ** i * a_k_12_fun(2 * i + 1, m)
+    beta_a = np.pi * (2 * a + 1) / (4 * nt)
+    sigma_m_a = lambda m: np.sin(beta_a - m * np.pi / 2)
+    kappa_m_a = lambda m: np.cos(beta_a - m * np.pi / 2)
+    sum_val = 0.
+    for i in range(0, r // 2 + 1):
+        for j in range(0, m // 2 + 1):
+            fac = a_m_i(r, i) * a_m_i(m, j) * sigma_m_a(r) * sigma_m_a(m)
+            arg = 2 * (i + j) + 2
+            zeta_val = zeta(arg, 1. - beta_a / np.pi) / np.pi ** arg
+            sum_val += fac * zeta_val * (-1) ** (r + m)
+    for i in range(0, r // 2 + 1):
+        for j in range(0, (m - 1) // 2 + 1):
+            fac = a_m_i(r, i) * b_m_i(m, j) * sigma_m_a(r) * kappa_m_a(m)
+            arg = 2 * (i + j) + 3
+            zeta_val = zeta(arg, 1. - beta_a / np.pi) / np.pi ** arg
+            sum_val += fac * zeta_val * (-1) ** (r + m + 1)
+    for i in range(0, (r - 1) // 2 + 1):
+        for j in range(0, m // 2 + 1):
+            fac = b_m_i(r, i) * a_m_i(m, j) * kappa_m_a(r) * sigma_m_a(m)
+            arg = 2 * (i + j) + 3
+            zeta_val = zeta(arg, 1. - beta_a / np.pi) / np.pi ** arg
+            sum_val += fac * zeta_val * (-1) ** (r + m + 1)
+    for i in range(0, (r - 1) // 2 + 1):
+        for j in range(0, (m - 1) // 2 + 1):
+            fac = b_m_i(r, i) * b_m_i(m, j) * kappa_m_a(r) * kappa_m_a(m)
+            arg = 2 * (i + j) + 4
+            zeta_val = zeta(arg, 1. - beta_a / np.pi) / np.pi ** arg
+            sum_val += fac * zeta_val * (-1) ** (r + m)
+
+    return sum_val / nt ** 2
+
+
+def get_kernel_matrix_for_degrees_zeta(nt: int, pol_deg_trial: int, pol_deg_test: int):
+    fac = -1.
+    if pol_deg_trial % 2 != pol_deg_test % 2:
+        fac = 1.
+    entry_i = lambda i: first_branch_sum(i, nt, pol_deg_trial,
+                                         pol_deg_test) + fac * second_branch_sum(i, nt,
+                                                                                 pol_deg_trial,
+                                                                                 pol_deg_test)
     return sparse.diags([entry_i(i) for i in range(nt)], format='csr')
 
 
 def get_kernel_matrix(nt: int, pol_deg_trial: int, pol_deg_test: int):
-    from hmod.hmod import get_hilbert_kernel_matrix_for_legendre_degrees
-    blocks = [[sparse.diags(get_hilbert_kernel_matrix_for_legendre_degrees(nt, n, m)) for n in range(pol_deg_trial + 1)] for m in
+    #from hmod.hmod import get_hilbert_kernel_matrix_for_legendre_degrees
+    blocks = [[get_kernel_matrix_for_degrees_zeta(nt, n, m) for n in range(pol_deg_trial + 1)]
+              for m in
               range(pol_deg_test + 1)]
     return sparse.bmat(blocks, format='csr')
-
 
 
 def get_operator_I_H_legendre_legendre(nt: int, pol_deg_trial: int, pol_deg_test: int, final_time: float):
@@ -154,7 +259,7 @@ def get_hilbert_matrix_with_derivatives_lagrange_legendre(nt: int, pol_deg_trial
     K = get_hilbert_matrix_with_derivatives_legendre_legendre(nt, pol_deg_trial
                                                               , pol_deg_test, derivatives_trial, derivatives_test,
                                                               final_time)
-    trans = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_test, nt))
+    trans = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_trial, nt))
 
     return K @ trans
 
@@ -165,6 +270,20 @@ def get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt: int, pol_deg_trial
     K = get_hilbert_matrix_with_derivatives_legendre_legendre(nt, pol_deg_trial
                                                               , pol_deg_test, derivatives_trial, derivatives_test,
                                                               final_time)
-    trans = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_test, nt))
+    trans = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_trial, nt))
+    transT = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_test, nt))
 
-    return trans.T @ K @ trans
+    return transT.T @ K @ trans
+
+
+if __name__ == '__main__':
+    pol_deg_trial = 1
+    pol_deg_test = 3
+    final_time = 1.0
+    nt = 3
+    diagonal_index = 1
+    first_sum_brute_force = first_branch_sum_brute_force(diagonal_index, nt, pol_deg_trial, pol_deg_test)
+    first_sum = first_branch_sum(diagonal_index, nt, pol_deg_trial, pol_deg_test)
+
+    print(first_sum_brute_force)
+    print(first_sum)

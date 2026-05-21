@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 import hmod.standard_matrices as sm
-import hmod.deprecated_hilbert_matrices as hm
+import hmod.hilbert_matrices as hm
 import hmod.matrix_tools as mat_tools
 import hmod.polynomial_bases as pb
 
@@ -33,8 +33,8 @@ def solve_ode_only_hilbert_directly(nt : int, polynomial_degree : int, number_of
     #project to piecewise polynomial space
     f_vec = sm.project_rhs_onto_legendre_basis(f_analytical, nt, polynomial_degree_rhs, T)
     #get the hilbert matrices
-    A = hm.Operator_dt_H_Lagrange_Lagrange(number_of_modes, nt, polynomial_degree, polynomial_degree)
-    F = hm.Operator_I_H_Legendre_Lagrange(number_of_modes, nt, polynomial_degree_rhs, polynomial_degree)
+    A = hm.get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt, polynomial_degree, polynomial_degree, 1, 0, 1.)
+    F = hm.get_hilbert_matrix_with_derivatives_legendre_lagrange(nt, polynomial_degree, polynomial_degree, 0, 0, 1.)
     rhs_vec = np.array(F @ f_vec)
     #transfer the system to a dense matrix for direct solving
     Kd = mat_tools.linear_operator_to_matrix(A)

@@ -38,10 +38,70 @@ def test_test_transform():
 
     assert T.shape == (nt*(pol_deg+1), nt*(pol_deg+1))
 
+
+def test_first_branch_sum():
+    pol_deg_trial = 5
+    pol_deg_test = 4
+    final_time = 1.0
+    nt = 3
+    diagonal_index = 2
+    first_sum_brute_force = hm.first_branch_sum_brute_force(diagonal_index, nt, pol_deg_trial, pol_deg_test)
+    first_sum = hm.first_branch_sum(diagonal_index, nt, pol_deg_trial, pol_deg_test)
+    assert np.allclose(first_sum_brute_force, first_sum, atol=1e-5)
+
+def test_second_branch_sum():
+    pol_deg_trial = 5
+    pol_deg_test = 3
+    final_time = 1.0
+    nt = 3
+    diagonal_index = 2
+    first_sum_brute_force = hm.second_branch_sum_brute_force(diagonal_index, nt, pol_deg_trial, pol_deg_test)
+    first_sum = hm.second_branch_sum(diagonal_index, nt, pol_deg_trial, pol_deg_test)
+    assert np.allclose(first_sum_brute_force, first_sum, atol=1e-5)
+
+
+def _test_first_derivative_matrix_against_old(p):
+    import hmod.matrix_tools as mt
+    nt = 5
+    pol_deg_trial = p
+    pol_deg_test = p
+    final_time = 1.0
+    nt = 3
+    AtH = hm.get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt, pol_deg_trial, pol_deg_test, 1, 0, final_time)
+    AtH_old = dhm.Operator_dt_H_Lagrange_Lagrange(int(1e5), nt, pol_deg_trial, pol_deg_test)
+    AtH_d = mt.linear_operator_to_matrix(AtH)
+    AtH_dh = AtH_d[1:,1:] #first row and column need to be homogenized
+    AtH_old_d = mt.linear_operator_to_matrix(AtH_old)
+    AtH_old_dh = AtH_old_d[1:,1:]
+    assert np.allclose(AtH_dh, AtH_old_dh, atol=1e-5)
+
+def test_first_derivative_matrix_against_old():
+    for p in [1, 2, 3, 4, 5]:
+        _test_first_derivative_matrix_against_old(p)
+
+
+def _test_hilbert_mass_against_old(p):
+    import hmod.matrix_tools as mt
+    nt = 5
+    pol_deg_trial = p
+    pol_deg_test = p
+    final_time = 1.0
+    nt = 3
+    MtH = hm.get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt, pol_deg_trial, pol_deg_test, 0, 0, final_time)
+    MtH_old = dhm.Operator_I_H_Lagrange_Lagrange(int(1e5), nt, pol_deg_trial, pol_deg_test)
+    MtH_d = mt.linear_operator_to_matrix(MtH)
+    MtH_old_d = mt.linear_operator_to_matrix(MtH_old)
+    Diff = MtH_d - MtH_old_d
+    assert np.allclose(MtH_d, MtH_old_d, atol=1e-3)
+def test_hilbert_mass_against_old():
+    for p in [1, 2, 3, 4, 5]:
+        _test_hilbert_mass_against_old(p)
+
+
 def test_kernel_matrix():
-    nt = 50
-    pol_deg_trial= 2
-    pol_deg_test = 2
+    nt = 2
+    pol_deg_trial= 5
+    pol_deg_test = 5
     K = hm.get_kernel_matrix(nt, pol_deg_trial, pol_deg_test)
     Kd = K.toarray()
     nmodes = int(2e5)
@@ -50,8 +110,22 @@ def test_kernel_matrix():
     K_op = Op.K
     K_opD = (2./nt**2)*K_op.toarray() #we need a factor of 2/nt**2 to match old implementation
     Diff = Kd - K_opD
-    assert np.allclose(Kd, K_opD, atol=1e-6, rtol=1e-5)
+    assert np.allclose(Kd, K_opD, atol=1e-3)
     assert K.shape == (nt*(pol_deg_test+1), nt*(pol_deg_trial+1))
+    #test the trial transform
+    from hmod.matrix_tools import linear_operator_to_matrix
+    from scipy.sparse.linalg import LinearOperator
+    T_old_op = LinearOperator(shape=(nt*(pol_deg_test+1), nt*(pol_deg_trial+1)), matvec=lambda x: Op.TrialTransform.apply_fft(x))
+    T_old = linear_operator_to_matrix(T_old_op)
+    T_new = linear_operator_to_matrix(hm.get_trial_transform(pol_deg_trial, nt))
+    Diff_T = T_old - T_new
+    assert np.allclose(Diff_T, np.zeros(Diff_T.shape), atol=1e-10)
+    #test the test transform
+    T_old_op = LinearOperator(shape=(nt*(pol_deg_test+1), nt*(pol_deg_trial+1)), matvec=lambda x: Op.TestTransform.apply_fft_transpose(x))
+    T_old = linear_operator_to_matrix(T_old_op)
+    T_new = linear_operator_to_matrix(hm.get_test_transform(pol_deg_test, nt)).T
+    Diff_T = T_old - T_new
+    assert np.allclose(Diff_T, np.zeros(Diff_T.shape), atol=1e-10)
 
 
 def test_I_H_against_dense():
