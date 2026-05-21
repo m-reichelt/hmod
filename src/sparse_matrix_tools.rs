@@ -68,24 +68,6 @@ pub fn csr_block_from_ndarray(blocks: &Array2<&CsrMatrix<f64>>) -> CsrMatrix<f64
     CsrMatrix::from(&coo)
 }
 
-
-pub fn diagonal_block_matrix_from_csr_vector(blocks: &Vec<CsrMatrix<f64>>) -> CsrMatrix<f64> {
-    let n = blocks.len();
-    let arr = Array2::from_shape_fn((n, n), |(i, j)| {
-        if i == j {
-            blocks[i].clone()
-        } else {
-            let n_rows = blocks[i].nrows();
-            let n_cols = blocks[j].ncols();
-            let empty = CooMatrix::new(n_rows, n_cols);
-            let empty = CsrMatrix::from(&empty);
-            empty
-        }
-    });
-    let array_of_blocks: Array2<&CsrMatrix<f64>> = arr.map(|b| b);
-    csr_block_from_ndarray(&array_of_blocks)
-}
-
 pub fn csr_to_triplets(a: &CsrMatrix<f64>) -> (Vec<usize>, Vec<usize>, Vec<f64>) {
     let coo = CooMatrix::from(a);
     let ro = coo.row_indices().to_vec();
