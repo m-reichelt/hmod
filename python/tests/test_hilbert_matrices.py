@@ -40,14 +40,15 @@ def test_test_transform():
 
 
 def test_first_branch_sum():
-    pol_deg_trial = 5
-    pol_deg_test = 4
     final_time = 1.0
-    nt = 3
-    diagonal_index = 2
-    first_sum_brute_force = hm.first_branch_sum_brute_force(diagonal_index, nt, pol_deg_trial, pol_deg_test)
-    first_sum = hm.first_branch_sum(diagonal_index, nt, pol_deg_trial, pol_deg_test)
-    assert np.allclose(first_sum_brute_force, first_sum, atol=1e-5)
+    cases = [
+        (5, 4, 3, 2),
+        (5, 5, 5, 0),
+    ]
+    for pol_deg_trial, pol_deg_test, nt, diagonal_index in cases:
+        first_sum_brute_force = hm.first_branch_sum_brute_force(diagonal_index, nt, pol_deg_trial, pol_deg_test)
+        first_sum = hm.first_branch_sum(diagonal_index, nt, pol_deg_trial, pol_deg_test)
+        assert np.allclose(first_sum_brute_force, first_sum, atol=1e-5)
 
 def test_second_branch_sum():
     pol_deg_trial = 5

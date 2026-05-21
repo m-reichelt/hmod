@@ -116,6 +116,7 @@ def a_k_12_fun(k: int, m: int):
 
 
 def first_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_test: int):
+    from scipy.special import spherical_jn as jn
     # use shorthand notation for the indices as in paper
     r = pol_deg_test
     m = pol_deg_trial
@@ -126,30 +127,31 @@ def first_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_t
     beta_a = np.pi * (2 * a + 1) / (4 * nt)
     sigma_m_a = lambda m: np.sin(beta_a - m * np.pi / 2)
     kappa_m_a = lambda m: np.cos(beta_a - m * np.pi / 2)
-    sum_val = 0.
+    q_shift = 1. + beta_a / np.pi
+    sum_val = jn(r, beta_a) * jn(m, beta_a)
     for i in range(0, r // 2 + 1):
         for j in range(0, m // 2 + 1):
             fac = a_m_i(r, i) * a_m_i(m, j) * sigma_m_a(r) * sigma_m_a(m)
             arg = 2 * (i + j) + 2
-            zeta_val = zeta(arg, beta_a / np.pi) / np.pi ** arg
+            zeta_val = zeta(arg, q_shift) / np.pi ** arg
             sum_val += fac * zeta_val
     for i in range(0, r // 2 + 1):
         for j in range(0, (m - 1) // 2 + 1):
             fac = a_m_i(r, i) * b_m_i(m, j) * sigma_m_a(r) * kappa_m_a(m)
             arg = 2 * (i + j) + 3
-            zeta_val = zeta(arg, beta_a / np.pi) / np.pi ** arg
+            zeta_val = zeta(arg, q_shift) / np.pi ** arg
             sum_val += fac * zeta_val
     for i in range(0, (r - 1) // 2 + 1):
         for j in range(0, m // 2 + 1):
             fac = b_m_i(r, i) * a_m_i(m, j) * kappa_m_a(r) * sigma_m_a(m)
             arg = 2 * (i + j) + 3
-            zeta_val = zeta(arg, beta_a / np.pi) / np.pi ** arg
+            zeta_val = zeta(arg, q_shift) / np.pi ** arg
             sum_val += fac * zeta_val
     for i in range(0, (r - 1) // 2 + 1):
         for j in range(0, (m - 1) // 2 + 1):
             fac = b_m_i(r, i) * b_m_i(m, j) * kappa_m_a(r) * kappa_m_a(m)
             arg = 2 * (i + j) + 4
-            zeta_val = zeta(arg, beta_a / np.pi) / np.pi ** arg
+            zeta_val = zeta(arg, q_shift) / np.pi ** arg
             sum_val += fac * zeta_val
 
     return sum_val / nt ** 2

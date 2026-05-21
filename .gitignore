@@ -1,0 +1,31 @@
+# Python caches and test output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Python extension/build artifacts
+*.so
+build/
+dist/
+*.egg-info/
+wheels/
+
+# Rust build artifacts
+target/
+Cargo.lock
+
+# Local environments
+.env
+.venv/
+venv/
+
+# Editor/project metadata
+.idea/
+.vscode/
+
+# OS/editor noise
+.DS_Store
+*~
+*.swp

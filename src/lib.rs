@@ -6,6 +6,7 @@ mod piecewise_polynomials;
 mod norms;
 mod preconditioning;
 mod hilbert_kernel;
+mod spherical_bessel;
 
 use nalgebra::{DMatrix, DMatrixView, DVector, Dyn, U1};
 use nalgebra_sparse::CsrMatrix;
