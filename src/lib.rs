@@ -5,7 +5,6 @@ mod transformations;
 mod piecewise_polynomials;
 mod norms;
 mod preconditioning;
-mod hilbert_kernel;
 mod spherical_bessel;
 
 use nalgebra::{DMatrix, DMatrixView, DVector, Dyn, U1};
@@ -227,14 +226,6 @@ fn compute_sine_base_coefficients_pw_constants(n_modes : usize, dofs: Vec<f64>, 
     Ok(filered_sine_coeffs_scaled.iter().cloned().collect())
 }
 
-/// Get the kernel matrix for modified Hilbert transform
-#[pyfunction]
-fn get_hilbert_kernel_matrix_for_legendre_degrees(nt : usize, pol_deg_tral : u32, pol_deg_test : u32) -> PyResult<Vec<f64>> {
-    use crate::hilbert_kernel::get_kernel_matrix_for_degrees;
-    Ok(get_kernel_matrix_for_degrees(nt, pol_deg_tral, pol_deg_test))
-}
-
-
 /// Formats the sum of two numbers as string.
 #[pyfunction]
 fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
@@ -248,7 +239,6 @@ fn hmod(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(compute_sine_base_coefficients, m)?)?;
     m.add_function(wrap_pyfunction!(compute_sine_base_coefficients_pw_constants, m)?)?;
     m.add_function(wrap_pyfunction!(lagrange_to_legendre_basis_transformation, m)?)?;
-    m.add_function(wrap_pyfunction!(get_hilbert_kernel_matrix_for_legendre_degrees, m)?)?;
     m.add_function(wrap_pyfunction!(get_lagrange_points, m)?)?;
     m.add_function(wrap_pyfunction!(norms::h12_seminorm, m)?)?;
     m.add_class::<LegendreToHilbertBasis>()?;
@@ -257,5 +247,4 @@ fn hmod(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<EigenBasisTransformLowestOrder>()?;
     Ok(())
 }
-
 

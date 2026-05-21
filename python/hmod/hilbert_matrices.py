@@ -69,43 +69,6 @@ def get_test_transform(pol_deg, nt, workers=-1):
     return block_operator
 
 
-def first_branch_sum_brute_force(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_test: int,
-                                 workers: int = -1):
-    assert 0 <= diagonal_index < nt, "Diagonal index must be between 0 and nt-1"
-    from scipy.special import spherical_jn as jn
-    alpha_k = lambda k: np.pi * (2 * k + 1) / (4 * nt)
-    alpha_q = lambda q: alpha_k(2 * q * nt + diagonal_index)
-    nmodes = int(1e5)
-    summand = lambda q: jn(pol_deg_test, alpha_q(q)) * jn(pol_deg_trial, alpha_q(q))
-    # sum in reversed order
-    q_vals = np.arange(nmodes)[::-1]
-    return np.sum(summand(q_vals)) / (nt ** 2)
-
-
-def second_branch_sum_brute_force(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_test: int,
-                                  workers: int = -1):
-    assert 0 <= diagonal_index < nt, "Diagonal index must be between 0 and nt-1"
-    from scipy.special import spherical_jn as jn
-    alpha_k = lambda k: np.pi * (2 * k + 1) / (4 * nt)
-    alpha_q = lambda q: alpha_k(2 * nt * (q + 1) - 1 - diagonal_index)
-    nmodes = int(1e5)
-    summand = lambda q: jn(pol_deg_test, alpha_q(q)) * jn(pol_deg_trial, alpha_q(q))
-    # sum in reversed order
-    q_vals = np.arange(nmodes)[::-1]
-    return np.sum(summand(q_vals)) / (nt ** 2)
-
-
-def get_kernel_matrix_for_degrees_brute_force(nt: int, pol_deg_trial: int, pol_deg_test: int):
-    fac = -1.
-    if pol_deg_trial % 2 != pol_deg_test % 2:
-        fac = 1.
-    entry_i = lambda i: first_branch_sum_brute_force(i, nt, pol_deg_trial,
-                                                     pol_deg_test) + fac * second_branch_sum_brute_force(i, nt,
-                                                                                                         pol_deg_trial,
-                                                                                                         pol_deg_test)
-    return sparse.diags([entry_i(i) for i in range(nt)], format='csr')
-
-
 def a_k_12_fun(k: int, m: int):
     if k > m:
         return 0.
@@ -209,7 +172,6 @@ def get_kernel_matrix_for_degrees_zeta(nt: int, pol_deg_trial: int, pol_deg_test
 
 
 def get_kernel_matrix(nt: int, pol_deg_trial: int, pol_deg_test: int):
-    #from hmod.hmod import get_hilbert_kernel_matrix_for_legendre_degrees
     blocks = [[get_kernel_matrix_for_degrees_zeta(nt, n, m) for n in range(pol_deg_trial + 1)]
               for m in
               range(pol_deg_test + 1)]
@@ -217,8 +179,6 @@ def get_kernel_matrix(nt: int, pol_deg_trial: int, pol_deg_test: int):
 
 
 def get_operator_I_H_legendre_legendre(nt: int, pol_deg_trial: int, pol_deg_test: int, final_time: float):
-    nmodes = int(1e5)
-    fourier_facs = np.ones(nmodes)
     U = get_trial_transform(pol_deg_trial, nt)
     T = get_test_transform(pol_deg_test, nt)
     K = sparse.linalg.aslinearoperator(get_kernel_matrix(nt, pol_deg_trial, pol_deg_test))
@@ -276,16 +236,3 @@ def get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt: int, pol_deg_trial
     transT = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_test, nt))
 
     return transT.T @ K @ trans
-
-
-if __name__ == '__main__':
-    pol_deg_trial = 1
-    pol_deg_test = 3
-    final_time = 1.0
-    nt = 3
-    diagonal_index = 1
-    first_sum_brute_force = first_branch_sum_brute_force(diagonal_index, nt, pol_deg_trial, pol_deg_test)
-    first_sum = first_branch_sum(diagonal_index, nt, pol_deg_trial, pol_deg_test)
-
-    print(first_sum_brute_force)
-    print(first_sum)

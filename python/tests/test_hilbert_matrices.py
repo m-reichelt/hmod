@@ -3,6 +3,34 @@ import numpy as np
 import hmod.hilbert_matrices as hm
 import matplotlib.pyplot as plt
 import hmod.deprecated_hilbert_matrices as dhm
+from hilbert_wrapper_reference_data import (
+    DENSE_HILBERT_MASS_NT1,
+    DENSE_HILBERT_STIFFNESS_HEAT_NT5,
+    DENSE_RHS_COS_PHASE5_NT50,
+)
+
+
+def _first_branch_sum_brute_force(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_test: int):
+    assert 0 <= diagonal_index < nt, "Diagonal index must be between 0 and nt-1"
+    from scipy.special import spherical_jn as jn
+
+    alpha_k = lambda k: np.pi * (2 * k + 1) / (4 * nt)
+    alpha_q = lambda q: alpha_k(2 * q * nt + diagonal_index)
+    q_vals = np.arange(int(1e5))[::-1]
+    summand = jn(pol_deg_test, alpha_q(q_vals)) * jn(pol_deg_trial, alpha_q(q_vals))
+    return np.sum(summand) / (nt ** 2)
+
+
+def _second_branch_sum_brute_force(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_test: int):
+    assert 0 <= diagonal_index < nt, "Diagonal index must be between 0 and nt-1"
+    from scipy.special import spherical_jn as jn
+
+    alpha_k = lambda k: np.pi * (2 * k + 1) / (4 * nt)
+    alpha_q = lambda q: alpha_k(2 * nt * (q + 1) - 1 - diagonal_index)
+    q_vals = np.arange(int(1e5))[::-1]
+    summand = jn(pol_deg_test, alpha_q(q_vals)) * jn(pol_deg_trial, alpha_q(q_vals))
+    return np.sum(summand) / (nt ** 2)
+
 
 def test_trial_transform():
     nt = 5
@@ -40,23 +68,21 @@ def test_test_transform():
 
 
 def test_first_branch_sum():
-    final_time = 1.0
     cases = [
         (5, 4, 3, 2),
         (5, 5, 5, 0),
     ]
     for pol_deg_trial, pol_deg_test, nt, diagonal_index in cases:
-        first_sum_brute_force = hm.first_branch_sum_brute_force(diagonal_index, nt, pol_deg_trial, pol_deg_test)
+        first_sum_brute_force = _first_branch_sum_brute_force(diagonal_index, nt, pol_deg_trial, pol_deg_test)
         first_sum = hm.first_branch_sum(diagonal_index, nt, pol_deg_trial, pol_deg_test)
         assert np.allclose(first_sum_brute_force, first_sum, atol=1e-5)
 
 def test_second_branch_sum():
     pol_deg_trial = 5
     pol_deg_test = 3
-    final_time = 1.0
     nt = 3
     diagonal_index = 2
-    first_sum_brute_force = hm.second_branch_sum_brute_force(diagonal_index, nt, pol_deg_trial, pol_deg_test)
+    first_sum_brute_force = _second_branch_sum_brute_force(diagonal_index, nt, pol_deg_trial, pol_deg_test)
     first_sum = hm.second_branch_sum(diagonal_index, nt, pol_deg_trial, pol_deg_test)
     assert np.allclose(first_sum_brute_force, first_sum, atol=1e-5)
 
@@ -130,26 +156,21 @@ def test_kernel_matrix():
 
 
 def test_I_H_against_dense():
-    import hilbertWrapper.hilbertWrapper as hw
     nt = 1
     T = 1.0
-    tpoints = np.linspace(0, T, nt+1)
     polynomial_degree_trial = 1
     polynomial_degree_test = 1
     Mt_fft = hm.get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt, polynomial_degree_trial, polynomial_degree_test, 0, 0, T)
-    #build the dense dt_H matrix using hilbert wrapper
-    Mth = hw.get_hilbert_mass(tpoints)
     #get a random vector
     np.random.seed(0)
     x = np.random.rand(nt*(polynomial_degree_trial)+1).astype(np.float64)
     I_H_fft = Mt_fft @ x
-    I_H_dense = Mth @ x
+    I_H_dense = DENSE_HILBERT_MASS_NT1 @ x
     diff_vec = I_H_dense - I_H_fft
     diff = np.linalg.norm(diff_vec)
     assert diff < 1e-4
 
 def test_rhs_against_dense():
-    import hilbertWrapper.hilbertWrapper as hw
     f_analytic = lambda t: np.cos(2 * np.pi * t+5)
     nt = 50
     T = 1.0
@@ -157,34 +178,26 @@ def test_rhs_against_dense():
     f_vec = 0.5 * (f_analytic(tpoints[:-1]) + f_analytic(tpoints[1:]))
     polynomial_degree_test = 1
     polynomial_degree_rhs = 0
-    n_modes = 100*nt
     rhs_builder = hm.get_hilbert_matrix_with_derivatives_legendre_lagrange(nt, polynomial_degree_rhs, polynomial_degree_test, 0, 0, T)
     rhs_fft = rhs_builder @ f_vec
-    #build the dense rhs matrix using hilbert wrapper
-    Fh = hw.get_rhs_mat(tpoints)
-    rhs_dense = Fh @ f_vec
+    rhs_dense = DENSE_RHS_COS_PHASE5_NT50
     diff_vec = rhs_dense - rhs_fft
     diff = np.linalg.norm(diff_vec)
     assert diff < 1e-4
 
 
 def test_dt_H_against_dense():
-    import hilbertWrapper.hilbertWrapper as hw
-    from hmod.matrix_tools import linear_operator_to_matrix
-    f_analytic = lambda t: np.cos(2 * np.pi * t+5)
     nt = 5
     T = 1.0
-    tpoints = np.linspace(0, T, nt+1)
     polynomial_degree_trial = 1
     polynomial_degree_test = 1
     At_fft = hm.get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt, polynomial_degree_trial, polynomial_degree_test, 1, 0, T)
-    Ath = hw.get_hilbert_stiffness_heat(tpoints)
     #get a random vector
     np.random.seed(0)
     x = np.random.rand(nt*(polynomial_degree_trial)+1).astype(np.float64)
     x[0] = 0.0  #enforce zero at t=0 as first column can be rubbish (either in old or new version)
     dtH_fft = At_fft @ x
-    dtH_dense = Ath @ x
+    dtH_dense = DENSE_HILBERT_STIFFNESS_HEAT_NT5 @ x
     diff_vec = dtH_dense - dtH_fft
     diff = np.linalg.norm(diff_vec)
     assert diff < 1e-4
