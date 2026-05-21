@@ -1,9 +1,12 @@
 import numpy as np
 import pytest
+
 import hmod.standard_matrices as sm
 import hmod.hilbert_matrices as hm
 import hmod.matrix_tools as mat_tools
 import hmod.polynomial_bases as pb
+import hmod.non_linear_operators as nops
+from scipy.sparse.linalg import LinearOperator
 
 def u_analytical(t):
     return np.sin(np.pi*t)
@@ -11,11 +14,36 @@ def u_analytical(t):
 def dt_u_analytical(t):
     return np.pi * np.cos(np.pi*t)
 
-def f_analytical(t):
-    return dt_u_analytical(t)
+def coeff(t):
+    return 1.0+t*t
 
-def solve_ode_only_hilbert_directly(nt : int, polynomial_degree : int, number_of_modes : int, T : float):
-    """Solve a simple ODE problem $u'(t) = f(t), u(0) = 0$ using only the Hilbert transformation as partial isometry.
+def f_analytical(t):
+    return coeff(t)*dt_u_analytical(t)
+
+T = 1.0
+class ResidualEvaluator(LinearOperator):
+    def __init__(self, nt, polynomial_degree_test):
+        self.projection_degree = polynomial_degree_test+2 #this is exact for the chosen coefficient
+        self.polynomial_degree_test = polynomial_degree_test
+        self.nt = nt
+        self.Op = nops.WeightedResidual(nops.ResidualType.Hilbert, polynomial_degree_test, self.projection_degree, nt, T)
+        self.lagrange_to_legendre = sm.get_lagrange_to_legendre_matrix(polynomial_degree_test, nt)
+        nrows = nt*polynomial_degree_test+1
+        ncols = nrows
+        shape = (nrows, ncols)
+        super().__init__(dtype=None, shape=shape)
+
+
+    def _matvec(self, x):
+        x_legendre = self.lagrange_to_legendre @ x
+        u_evaluator = pb.LegendreBasisEvaluator(x_legendre, self.polynomial_degree_test, self.nt, T)
+        residual_evaluator = np.vectorize(lambda t: u_evaluator.evaluate_derivative(t)*coeff(t))
+        result = self.Op.apply(residual_evaluator)
+        return result
+
+
+def solve_ode_only_hilbert_non_constant_coeff_directly(nt : int, polynomial_degree : int, number_of_modes : int, T : float):
+    """Solve a simple ODE problem $c(t) u'(t) = f(t), u(0) = 0$ using only the Hilbert transformation as partial isometry.
         Mainly for testing purposes of the FFT implementation against L.
 
     Args:
@@ -33,8 +61,8 @@ def solve_ode_only_hilbert_directly(nt : int, polynomial_degree : int, number_of
     #project to piecewise polynomial space
     f_vec = sm.project_rhs_onto_legendre_basis(f_analytical, nt, polynomial_degree_rhs, T)
     #get the hilbert matrices
-    A = hm.get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt, polynomial_degree, polynomial_degree, 1, 0, 1.)
-    F = hm.get_hilbert_matrix_with_derivatives_legendre_lagrange(nt, polynomial_degree, polynomial_degree, 0, 0, 1.)
+    A = ResidualEvaluator(nt, polynomial_degree)
+    F = hm.get_hilbert_matrix_with_derivatives_legendre_lagrange(nt, polynomial_degree_rhs, polynomial_degree, 0, 0, T)
     rhs_vec = np.array(F @ f_vec)
     #transfer the system to a dense matrix for direct solving
     Kd = mat_tools.linear_operator_to_matrix(A)
@@ -65,11 +93,11 @@ def test_hilbert_only_ode_convergence():
     T = 1.0
     polynomial_degrees = [1,2,3,4]
     nt_values = [512, 256, 128, 64, 32]
-    nt_values = [int(n/2) for n in nt_values]  #we will double nt in the convergence test
+    nt_values = [int(n/8) for n in nt_values]  #we will double nt in the convergence test
     number_of_modes = int(1e5)
     for (p,n) in zip(polynomial_degrees, nt_values):
-        l2e0, h12e_0 = solve_ode_only_hilbert_directly(n, p, number_of_modes, T)
-        l2e1, h12e_1 = solve_ode_only_hilbert_directly(n*2, p, number_of_modes, T)
+        l2e0, h12e_0 = solve_ode_only_hilbert_non_constant_coeff_directly(n, p, number_of_modes, T)
+        l2e1, h12e_1 = solve_ode_only_hilbert_non_constant_coeff_directly(n*2, p, number_of_modes, T)
         eocl2 = np.log2(l2e0/l2e1)
         eoch12 = np.log2(h12e_0/h12e_1)
         #check that eocl2 is approximately p+1
@@ -81,4 +109,5 @@ def test_hilbert_only_ode_convergence():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_hilbert_only_ode_convergence()
+    #pytest.main([__file__])

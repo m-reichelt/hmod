@@ -1,9 +1,11 @@
 import numpy as np
 import pytest
 import hmod.standard_matrices as sm
-import hmod.deprecated_hilbert_matrices as hm
+import hmod.hilbert_matrices as hm
 import hmod.matrix_tools as mat_tools
 import hmod.polynomial_bases as pb
+
+mu = 5.0
 
 def u_analytical(t):
     return np.sin(np.pi*t)
@@ -12,10 +14,26 @@ def dt_u_analytical(t):
     return np.pi * np.cos(np.pi*t)
 
 def f_analytical(t):
-    return dt_u_analytical(t)
+    return dt_u_analytical(t)+ mu * u_analytical(t)
 
-def solve_ode_only_hilbert_directly(nt : int, polynomial_degree : int, number_of_modes : int, T : float):
-    """Solve a simple ODE problem $u'(t) = f(t), u(0) = 0$ using only the Hilbert transformation as partial isometry.
+def csr_to_linear_operator(csr_matrix):
+    """Convert a CSR matrix to a linear operator.
+
+    Args:
+        csr_matrix (scipy.sparse.csr_matrix): The input CSR matrix.
+
+    Returns:
+        scipy.sparse.linalg.LinearOperator: The resulting linear operator.
+    """
+    from scipy.sparse.linalg import LinearOperator
+
+    def matvec(x):
+        return csr_matrix.dot(x)
+
+    return LinearOperator(csr_matrix.shape, matvec=matvec)
+
+def solve_ode_hybrid_directly(nt : int, polynomial_degree : int, number_of_modes : int, T : float):
+    """Solve a simple ODE problem $u'(t) + \mu u(t) = f(t), u(0) = 0$ using only the Hilbert transformation as partial isometry.
         Mainly for testing purposes of the FFT implementation against L.
 
     Args:
@@ -33,8 +51,23 @@ def solve_ode_only_hilbert_directly(nt : int, polynomial_degree : int, number_of
     #project to piecewise polynomial space
     f_vec = sm.project_rhs_onto_legendre_basis(f_analytical, nt, polynomial_degree_rhs, T)
     #get the hilbert matrices
-    A = hm.Operator_dt_H_Lagrange_Lagrange(number_of_modes, nt, polynomial_degree, polynomial_degree)
-    F = hm.Operator_I_H_Legendre_Lagrange(number_of_modes, nt, polynomial_degree_rhs, polynomial_degree)
+    Ah = hm.get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt, polynomial_degree, polynomial_degree, 1, 0, T)
+    Mh = hm.get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt, polynomial_degree_rhs, polynomial_degree, 0, 0, T)
+    Fh = hm.get_hilbert_matrix_with_derivatives_legendre_lagrange(nt, polynomial_degree_rhs, polynomial_degree, 0, 0, T)
+    #get the standard matrices
+    Ab = sm.get_lagrange_lagrange_matrix_for_derivatives(polynomial_degree_trial=polynomial_degree, polynomial_degree_test=polynomial_degree,
+                                                        derivatives_trial=1, derivatives_test=0, nt=nt, T=T)
+    Ab = csr_to_linear_operator(Ab)
+    Mb = sm.get_lagrange_lagrange_matrix_for_derivatives(polynomial_degree_trial=polynomial_degree, polynomial_degree_test=polynomial_degree,
+                                                        derivatives_trial=0, derivatives_test=0, nt=nt, T=T)
+    Mb = csr_to_linear_operator(Mb)
+    Fb = sm.get_legendre_lagrange_matrix_for_derivatives(polynomial_degree_trial=polynomial_degree_rhs, polynomial_degree_test=polynomial_degree,
+                                                        derivatives_trial=0, derivatives_test=0, nt=nt, T=T)
+    Fb = csr_to_linear_operator(Fb)
+    #combine
+    A = Ah + Ab + mu * (Mh + Mb)
+    F = Fh + Fb
+
     rhs_vec = np.array(F @ f_vec)
     #transfer the system to a dense matrix for direct solving
     Kd = mat_tools.linear_operator_to_matrix(A)
@@ -61,15 +94,15 @@ def solve_ode_only_hilbert_directly(nt : int, polynomial_degree : int, number_of
     return L2_error, H1_2_error
 
 
-def test_hilbert_only_ode_convergence():
+def test_hybrid_ode_convergence():
     T = 1.0
     polynomial_degrees = [1,2,3,4]
     nt_values = [512, 256, 128, 64, 32]
     nt_values = [int(n/2) for n in nt_values]  #we will double nt in the convergence test
     number_of_modes = int(1e5)
     for (p,n) in zip(polynomial_degrees, nt_values):
-        l2e0, h12e_0 = solve_ode_only_hilbert_directly(n, p, number_of_modes, T)
-        l2e1, h12e_1 = solve_ode_only_hilbert_directly(n*2, p, number_of_modes, T)
+        l2e0, h12e_0 = solve_ode_hybrid_directly(n, p, number_of_modes, T)
+        l2e1, h12e_1 = solve_ode_hybrid_directly(n*2, p, number_of_modes, T)
         eocl2 = np.log2(l2e0/l2e1)
         eoch12 = np.log2(h12e_0/h12e_1)
         #check that eocl2 is approximately p+1
