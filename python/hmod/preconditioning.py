@@ -5,16 +5,55 @@ import numpy as np
 
 
 class LU_solver(scipy.sparse.linalg.LinearOperator):
+    """LinearOperator wrapper around a sparse LU factorization."""
+
     def __init__(self, A : scipy.sparse.spmatrix):
         self.A_lu = scipy.sparse.linalg.splu(A.tocsc())
         self.dtype = np.float64
         shape = A.shape
         super().__init__(dtype=self.dtype, shape=shape)
     def _matmat(self, X):
+        """Solve the factored sparse system for one or more right-hand sides."""
         return self.A_lu.solve(X)
 
 class BPXPreconditioner(LinearOperator):
-    """A linear operator that applies the BPX preconditioner."""
+    r"""BPX preconditioner for temporal Lagrange spaces.
+
+    This operator approximates the inverse of the temporal norm operator
+
+    ``mu * I + B^s``,
+
+    where ``B^s`` represents a Sobolev-type contribution of order
+    ``sobolev_exponent``. In the hybrid ODE setting one typically uses
+    ``sobolev_exponent=0.5`` to precondition the
+    ``H^{1/2}(I) + mu L2(I)`` norm induced by the formulation.
+
+    The implementation builds a hierarchy of uniformly refined temporal
+    meshes from ``nt_coarse`` to ``nt_coarse * 2**n_refinements``. On each
+    level it forms the Lagrange mass matrix ``M_l``, weights it by
+    ``mu + h_l**(-2*s)``, applies a sparse LU inverse on that level, and
+    prolongates the result to the finest level. The level contributions are
+    summed in the standard BPX fashion.
+
+    The first temporal DOF is removed on every level, which corresponds to a
+    homogeneous initial condition such as ``u(0)=0``. Consequently, the
+    exposed operator acts on the already reduced finest-level vector.
+
+    Parameters
+    ----------
+    mu:
+        Weight of the L2/mass part.
+    n_refinements:
+        Number of uniform refinements from the coarsest to finest mesh.
+    sobolev_exponent:
+        Sobolev order ``s`` used in the BPX level weight ``h_l**(-2*s)``.
+    polynomial_degree:
+        Polynomial degree of the temporal Lagrange space on each interval.
+    nt_coarse:
+        Number of time intervals on the coarsest mesh.
+    T:
+        Final time, i.e. the interval is ``(0, T)``.
+    """
     def __init__(self, mu : float, n_refinements : int, sobolev_exponent : float, polynomial_degree : int, nt_coarse : int, T : float):
         from hmod.standard_matrices import get_lagrange_lagrange_matrix_for_derivatives
         import hmod.polynomial_bases as pb
@@ -43,7 +82,7 @@ class BPXPreconditioner(LinearOperator):
         super().__init__(dtype=self.dtype, shape=shape)
 
     def _matvec(self, x):
-        """Apply the BPX preconditioner to the input vector x."""
+        """Apply the BPX preconditioner to a reduced finest-level vector."""
         x = np.array(x)
         x2 = self.B_inv_op @ x
         return x2

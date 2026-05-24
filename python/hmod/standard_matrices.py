@@ -5,7 +5,14 @@ from hmod.polynomial_bases import get_lagrange_to_legendre_matrix
 
 
 def legendre_extension_matrix_to_polynomial_degree(degree_original : int, degree_extended : int, nt : int):
-    """Get the extension matrix from original degree to extended degree for the Legendre Basis."""
+    """Return the Legendre coefficient extension matrix.
+
+    The matrix embeds a degree ``degree_original`` piecewise Legendre space
+    into a degree ``degree_extended`` space on the same uniform mesh by
+    appending zero coefficients for the higher polynomial modes.
+    Coefficients use degree-major ordering:
+    ``[degree 0 on all intervals, degree 1 on all intervals, ...]``.
+    """
     ndof_original = (degree_original + 1)*nt
     ndof_extended = (degree_extended + 1)*nt
     if degree_extended < degree_original:
@@ -23,8 +30,11 @@ def legendre_extension_matrix_to_polynomial_degree(degree_original : int, degree
         return Ext
 
 def get_legendre_legendre_matrix_for_kernel(polynomial_degree : int, nt : int, kernelMatrix : np.array):
-    """Get the matrix for a given kernel in the legendre basis.
-        The kernel is for a(p_lm, p_ln), so it can still incorporate a factor for the transformation
+    """Lift a local Legendre degree kernel to all time intervals.
+
+    ``kernelMatrix`` contains the coupling between local Legendre degrees.
+    The returned global matrix is ``kron(kernelMatrix, I_nt)`` and therefore
+    acts on degree-major Legendre coefficient vectors.
     """
     I = scipy.sparse.identity(nt)
     from scipy.sparse import kron
@@ -35,9 +45,12 @@ def get_legendre_legendre_matrix_for_kernel(polynomial_degree : int, nt : int, k
 
 
 def get_legendre_legendre_matrix_for_kernel_and_arbitrary_degrees(polynomial_degree_trial : int, polynomial_degree_test : int, nt : int, kernelMatrix : np.array):
-    """Get the matrix for a given kernel in the legendre basis.
-        The kernel is for a(p_lm, p_ln), so it can still incorporate a factor for the transformation
-        This function allows for different polynomial degrees in test and trial.
+    """Return a Legendre-Legendre matrix for possibly different degrees.
+
+    Rows correspond to test functions and columns to trial functions. The
+    supplied ``kernelMatrix`` is assembled on the maximum of trial and test
+    degree and then restricted by Legendre extension matrices to the requested
+    trial and test spaces.
     """
     polynomial_degree = max(polynomial_degree_trial, polynomial_degree_test)
     extension_trial = legendre_extension_matrix_to_polynomial_degree(polynomial_degree_trial, polynomial_degree, nt)
@@ -48,7 +61,17 @@ def get_legendre_legendre_matrix_for_kernel_and_arbitrary_degrees(polynomial_deg
     return K
 
 def get_kernel_legendre_legendre(polynomial_degree : int, derivatives_trial : int, derivatives_test : int,  nt : int, T : float):
-    """Get the kernel matrix for the legendre basis."""
+    r"""Return the local Legendre kernel for derivative couplings.
+
+    With ``i = derivatives_trial`` and ``j = derivatives_test``, the local
+    kernel entries are scaled reference-cell integrals for
+
+    ``<partial_t^i phi_m, partial_t^j psi_l>_I``.
+
+    The row index ``l`` denotes the test Legendre degree and the column
+    index ``m`` denotes the trial Legendre degree. Scaling by the interval
+    length ``h = T / nt`` is included.
+    """
     kernelMatrix = np.zeros((polynomial_degree+1, polynomial_degree+1))
     #compute without the transformation factors
     for l in range(polynomial_degree+1):
@@ -76,7 +99,17 @@ def get_kernel_legendre_legendre(polynomial_degree : int, derivatives_trial : in
 
 def get_legendre_legendre_matrix_for_derivatives(polynomial_degree_trial : int, polynomial_degree_test : int
                                                  ,derivatives_trial : int, derivatives_test : int, nt : int, T : float):
-    """Get the legendre legendre matrix for given derivatives and polynomial degrees."""
+    r"""Return a standard matrix in Legendre trial/test bases.
+
+    Rows correspond to test basis functions and columns to trial basis
+    functions. With ``i = derivatives_trial`` and
+    ``j = derivatives_test``, the matrix entries are
+
+    ``A[r, m] = <partial_t^i phi_m, partial_t^j psi_r>_I``.
+
+    Here ``phi_m`` is a Legendre trial basis function and ``psi_r`` is a
+    Legendre test basis function.
+    """
     polynomial_degree = max(polynomial_degree_trial, polynomial_degree_test)
     kernelMatrix = get_kernel_legendre_legendre(polynomial_degree, derivatives_trial, derivatives_test, nt, T)
     K = get_legendre_legendre_matrix_for_kernel_and_arbitrary_degrees(polynomial_degree_trial, polynomial_degree_test, nt, kernelMatrix)
@@ -84,8 +117,16 @@ def get_legendre_legendre_matrix_for_derivatives(polynomial_degree_trial : int, 
 
 def get_legendre_lagrange_matrix_for_derivatives(polynomial_degree_trial : int, polynomial_degree_test : int
                                                  ,derivatives_trial : int, derivatives_test : int, nt : int, T : float):
-    """Get the legendre lagrange matrix for given derivatives and polynomial degrees.
-       In this sense the trial functions are in legendre basis and the test functions in lagrange basis.
+    r"""Return a standard matrix with Legendre trial and Lagrange test basis.
+
+    Rows correspond to Lagrange test functions and columns to Legendre trial
+    functions. With ``i = derivatives_trial`` and ``j = derivatives_test``,
+    the matrix entries are
+
+    ``A[r, m] = <partial_t^i phi_m, partial_t^j psi_r>_I``.
+
+    Here ``phi_m`` is a Legendre trial basis function and ``psi_r`` is a
+    Lagrange test basis function.
     """
     #first get the transformation matrix from lagrange to legendre for the test functions
     Ttest = get_lagrange_to_legendre_matrix(polynomial_degree_test, nt)
@@ -99,8 +140,16 @@ def get_legendre_lagrange_matrix_for_derivatives(polynomial_degree_trial : int, 
 
 def get_lagrange_legendre_matrix_for_derivatives(polynomial_degree_trial : int, polynomial_degree_test : int
                                                  ,derivatives_trial : int, derivatives_test : int, nt : int, T : float):
-    """Get the lagrange legendre matrix for given derivatives and polynomial degrees.
-       In this sense the trial functions are in lagrange basis and the test functions in legendre basis.
+    r"""Return a standard matrix with Lagrange trial and Legendre test basis.
+
+    Rows correspond to Legendre test functions and columns to Lagrange trial
+    functions. With ``i = derivatives_trial`` and ``j = derivatives_test``,
+    the matrix entries are
+
+    ``A[r, m] = <partial_t^i phi_m, partial_t^j psi_r>_I``.
+
+    Here ``phi_m`` is a Lagrange trial basis function and ``psi_r`` is a
+    Legendre test basis function.
     """
     #first get the transformation matrix from lagrange to legendre for the test functions
     Ttrial = get_lagrange_to_legendre_matrix(polynomial_degree_trial, nt)
@@ -114,8 +163,18 @@ def get_lagrange_legendre_matrix_for_derivatives(polynomial_degree_trial : int, 
 
 def get_lagrange_lagrange_matrix_for_derivatives(polynomial_degree_trial : int, polynomial_degree_test : int
                                                  ,derivatives_trial : int, derivatives_test : int, nt : int, T : float):
-    """Get the lagrange lagrange matrix for given derivatives and polynomial degrees.
-       In this sense the trial functions are in lagrange basis and the test functions in lagrange basis.
+    r"""Return a standard matrix with Lagrange trial/test bases.
+
+    Rows correspond to Lagrange test functions and columns to Lagrange trial
+    functions. With ``i = derivatives_trial`` and ``j = derivatives_test``,
+    the matrix entries are
+
+    ``A[r, m] = <partial_t^i phi_m, partial_t^j psi_r>_I``.
+
+    This is the standard part of the temporal bilinear form. For example,
+    ``derivatives_trial=1`` and ``derivatives_test=0`` gives the derivative
+    term ``<partial_t u_h, v_h>_I``, while both derivative orders equal to
+    zero give the mass term ``<u_h, v_h>_I``.
     """
     #first get the transformation matrix from lagrange to legendre for the trial function
     Ttrial = get_lagrange_to_legendre_matrix(polynomial_degree_trial, nt)
@@ -130,7 +189,15 @@ def get_lagrange_lagrange_matrix_for_derivatives(polynomial_degree_trial : int, 
 
 
 def rhs_quadrature(f, nt : int, polynomial_degree_test : int, T : float, quad_order : int = None) -> np.ndarray:
-    """Compute the rhs vector by quadrature."""
+    r"""Compute the Legendre load vector by quadrature.
+
+    The returned vector contains entries
+
+    ``b[r] = <f, psi_r>_I``,
+
+    where ``psi_r`` are piecewise Legendre test basis functions of degree at
+    most ``polynomial_degree_test``. The result uses degree-major ordering.
+    """
     from numpy.polynomial.legendre import leggauss
     from scipy.special import legendre
     #get quadrature points and weights on [-1,1]
@@ -159,7 +226,16 @@ def rhs_quadrature(f, nt : int, polynomial_degree_test : int, T : float, quad_or
 
 
 def project_rhs_onto_legendre_basis(f, nt : int, polynomial_degree_test : int, T : float, quad_order : int = None) -> np.ndarray:
-    """Project the rhs function onto the legendre basis using quadrature."""
+    r"""Return Legendre coefficients of the L2 projection of a right-hand side.
+
+    This computes ``f_h`` in the piecewise Legendre space such that
+
+    ``<f_h, psi_r>_I = <f, psi_r>_I``
+
+    for all Legendre test basis functions ``psi_r`` of degree at most
+    ``polynomial_degree_test``. The returned array contains the coefficients
+    of ``f_h`` in degree-major ordering.
+    """
     rhs_legendre = rhs_quadrature(f, nt, polynomial_degree_test, T, quad_order)
     M = get_legendre_legendre_matrix_for_derivatives(polynomial_degree_trial=polynomial_degree_test, polynomial_degree_test=polynomial_degree_test,
                                                      derivatives_trial=0, derivatives_test=0, nt=nt, T=T)

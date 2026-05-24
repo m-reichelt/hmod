@@ -8,6 +8,8 @@ from scipy.special import factorial, zeta
 
 
 class DST_IV(LinearOperator):
+    """Matrix-free discrete sine transform of type IV on nt values."""
+
     def __init__(self, nt: int, workers=-1):
         self.nt = nt
         self.workers = workers
@@ -23,6 +25,8 @@ class DST_IV(LinearOperator):
 
 
 class DCT_IV(LinearOperator):
+    """Matrix-free discrete cosine transform of type IV on nt values."""
+
     def __init__(self, nt: int, workers=-1):
         self.nt = nt
         self.workers = workers
@@ -38,6 +42,13 @@ class DCT_IV(LinearOperator):
 
 
 def get_trial_transform(pol_deg, nt, workers=-1):
+    """Return the FFT-based block transform for trial Legendre modes.
+
+    The transform maps degree-major piecewise Legendre coefficients into
+    the sine/cosine coefficient ordering used by the modified Hilbert
+    transform kernel. Even trial degrees use DCT-IV blocks, odd trial
+    degrees use DST-IV blocks, with the signs from the analytic formula.
+    """
     from hmod.block_operations import BlockLinearOperator
     blocks = [[None for _ in range(pol_deg + 1)] for _ in range(pol_deg + 1)]
 
@@ -54,6 +65,13 @@ def get_trial_transform(pol_deg, nt, workers=-1):
 
 
 def get_test_transform(pol_deg, nt, workers=-1):
+    """Return the FFT-based block transform for test Legendre modes.
+
+    This is the test-side analogue of :func:`get_trial_transform`. It maps
+    piecewise Legendre test coefficients into the sine/cosine coefficient
+    ordering used for the action of ``H_T`` on the test function in
+    ``<u, H_T v>_I``.
+    """
     from hmod.block_operations import BlockLinearOperator
     blocks = [[None for _ in range(pol_deg + 1)] for _ in range(pol_deg + 1)]
 
@@ -70,6 +88,7 @@ def get_test_transform(pol_deg, nt, workers=-1):
 
 
 def a_k_12_fun(k: int, m: int):
+    """Auxiliary coefficient in the zeta-series kernel formula."""
     if k > m:
         return 0.
     else:
@@ -79,6 +98,12 @@ def a_k_12_fun(k: int, m: int):
 
 
 def first_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_test: int):
+    """Compute the first zeta-series branch for one kernel diagonal entry.
+
+    The returned scalar contributes to the diagonal kernel block coupling
+    trial Legendre degree ``pol_deg_trial`` with test Legendre degree
+    ``pol_deg_test`` for the bilinear form ``<u, H_T v>_I``.
+    """
     from scipy.special import spherical_jn as jn
     # use shorthand notation for the indices as in paper
     r = pol_deg_test
@@ -121,6 +146,12 @@ def first_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_t
 
 
 def second_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_test: int):
+    """Compute the second zeta-series branch for one kernel diagonal entry.
+
+    Together with :func:`first_branch_sum`, this gives the diagonal kernel
+    block for a fixed pair of trial/test Legendre degrees in the matrix of
+    ``<u, H_T v>_I``.
+    """
     # use shorthand notation for the indices as in paper
     r = pol_deg_test
     m = pol_deg_trial
@@ -161,6 +192,13 @@ def second_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_
 
 
 def get_kernel_matrix_for_degrees_zeta(nt: int, pol_deg_trial: int, pol_deg_test: int):
+    """Return one diagonal kernel block for fixed Legendre degrees.
+
+    The block has shape ``(nt, nt)`` and couples all time intervals for one
+    trial degree and one test degree. It is diagonal in the transformed
+    sine/cosine basis; the entries are evaluated with the zeta-series
+    formula used for the modified Hilbert transform.
+    """
     fac = -1.
     if pol_deg_trial % 2 != pol_deg_test % 2:
         fac = 1.
@@ -172,6 +210,12 @@ def get_kernel_matrix_for_degrees_zeta(nt: int, pol_deg_trial: int, pol_deg_test
 
 
 def get_kernel_matrix(nt: int, pol_deg_trial: int, pol_deg_test: int):
+    """Return the full transformed kernel for all Legendre degree pairs.
+
+    The result is a block matrix collecting
+    :func:`get_kernel_matrix_for_degrees_zeta` for trial degrees
+    ``0..pol_deg_trial`` and test degrees ``0..pol_deg_test``.
+    """
     blocks = [[get_kernel_matrix_for_degrees_zeta(nt, n, m) for n in range(pol_deg_trial + 1)]
               for m in
               range(pol_deg_test + 1)]
@@ -179,6 +223,17 @@ def get_kernel_matrix(nt: int, pol_deg_trial: int, pol_deg_test: int):
 
 
 def get_operator_I_H_legendre_legendre(nt: int, pol_deg_trial: int, pol_deg_test: int, final_time: float):
+    r"""Return the Legendre-Legendre operator for ``<u, H_T v>_I``.
+
+    Rows correspond to test functions and columns to trial functions. For
+    trial basis functions ``phi_m`` and test basis functions ``psi_r``,
+    this operator represents
+
+    ``A[r, m] = <phi_m, H_T psi_r>_I``.
+
+    The returned object is matrix-free and uses FFT-based transforms around
+    the zeta-series kernel.
+    """
     U = get_trial_transform(pol_deg_trial, nt)
     T = get_test_transform(pol_deg_test, nt)
     K = sparse.linalg.aslinearoperator(get_kernel_matrix(nt, pol_deg_trial, pol_deg_test))
@@ -188,6 +243,18 @@ def get_operator_I_H_legendre_legendre(nt: int, pol_deg_trial: int, pol_deg_test
 def get_hilbert_matrix_with_derivatives_legendre_legendre(nt: int, pol_deg_trial: int, pol_deg_test: int,
                                                           derivatives_trial: int, derivatives_test: int,
                                                           final_time: float):
+    r"""Return a Hilbert matrix in Legendre trial/test bases.
+
+    Rows correspond to test basis functions and columns to trial basis
+    functions. With ``i = derivatives_trial`` and
+    ``j = derivatives_test``, the matrix entries are
+
+    ``A[r, m] = <partial_t^i phi_m, H_T partial_t^j psi_r>_I``.
+
+    Here ``phi_m`` is a trial basis function, ``psi_r`` is a test basis
+    function, and ``H_T`` is the modified Hilbert transform on
+    ``I = (0, final_time)``.
+    """
     Mh = get_operator_I_H_legendre_legendre(nt, pol_deg_trial, pol_deg_test, final_time)
     Mat = Mh
     if derivatives_trial > 0:
@@ -207,6 +274,16 @@ def get_hilbert_matrix_with_derivatives_legendre_legendre(nt: int, pol_deg_trial
 def get_hilbert_matrix_with_derivatives_legendre_lagrange(nt: int, pol_deg_trial: int, pol_deg_test: int,
                                                           derivatives_trial: int, derivatives_test: int,
                                                           final_time: float):
+    r"""Return a Hilbert matrix with Legendre trial and Lagrange test basis.
+
+    With ``i = derivatives_trial`` and ``j = derivatives_test``, the matrix
+    represents
+
+    ``A[r, m] = <partial_t^i phi_m, H_T partial_t^j psi_r>_I``,
+
+    where ``phi_m`` is a Legendre trial basis function and ``psi_r`` is a
+    Lagrange test basis function.
+    """
     K = get_hilbert_matrix_with_derivatives_legendre_legendre(nt, pol_deg_trial
                                                               , pol_deg_test, derivatives_trial, derivatives_test,
                                                               final_time)
@@ -218,6 +295,16 @@ def get_hilbert_matrix_with_derivatives_legendre_lagrange(nt: int, pol_deg_trial
 def get_hilbert_matrix_with_derivatives_lagrange_legendre(nt: int, pol_deg_trial: int, pol_deg_test: int,
                                                           derivatives_trial: int, derivatives_test: int,
                                                           final_time: float):
+    r"""Return a Hilbert matrix with Lagrange trial and Legendre test basis.
+
+    With ``i = derivatives_trial`` and ``j = derivatives_test``, the matrix
+    represents
+
+    ``A[r, m] = <partial_t^i phi_m, H_T partial_t^j psi_r>_I``,
+
+    where ``phi_m`` is a Lagrange trial basis function and ``psi_r`` is a
+    Legendre test basis function.
+    """
     K = get_hilbert_matrix_with_derivatives_legendre_legendre(nt, pol_deg_trial
                                                               , pol_deg_test, derivatives_trial, derivatives_test,
                                                               final_time)
@@ -229,6 +316,17 @@ def get_hilbert_matrix_with_derivatives_lagrange_legendre(nt: int, pol_deg_trial
 def get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt: int, pol_deg_trial: int, pol_deg_test: int,
                                                           derivatives_trial: int, derivatives_test: int,
                                                           final_time: float):
+    r"""Return a Hilbert matrix with Lagrange trial/test bases.
+
+    With ``i = derivatives_trial`` and ``j = derivatives_test``, the matrix
+    represents
+
+    ``A[r, m] = <partial_t^i phi_m, H_T partial_t^j psi_r>_I``,
+
+    where ``phi_m`` is a Lagrange trial basis function and ``psi_r`` is a
+    Lagrange test basis function. This is the common form used, for example,
+    in the hybrid ODE bilinear form.
+    """
     K = get_hilbert_matrix_with_derivatives_legendre_legendre(nt, pol_deg_trial
                                                               , pol_deg_test, derivatives_trial, derivatives_test,
                                                               final_time)
