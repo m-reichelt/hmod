@@ -4,15 +4,17 @@ from scipy.sparse import csr_matrix
 from numba import njit
 
 def linear_operator_to_matrix(L):
-        #this step is costly now, but can be replaced later by a more efficient implementation
+        """Materialize a linear operator as a dense matrix.
+
+        This also works for rectangular operators with shape ``(m, n)``:
+        applying ``L`` to the ``n x n`` identity returns the full ``m x n``
+        dense matrix.
+        """
+        # Apply the operator to all basis vectors at once, so LinearOperator
+        # implementations can use their optimized/parallel matmat path.
         n_cols = L.shape[1]
-        A = np.zeros(L.shape)
-        e = np.zeros(n_cols)
-        for i in range(n_cols):
-            e[i] = 1.0
-            A[:, i] = L @ e
-            e[i] = 0.0
-        return A
+        identity = np.eye(n_cols, dtype=getattr(L, "dtype", np.float64))
+        return np.asarray(L @ identity)
 
 def triplets_to_linear_operator(row_indices, col_indices, values):
     from scipy.sparse import coo_matrix
