@@ -44,5 +44,22 @@ def test_evaluation_and_derivative():
         assert diff_du_matr_norm < 1e-10
 
 
+def test_evaluator_accepts_single_column_dofs():
+    nt = 4
+    T = 1.0
+    polynomial_degree = 1
+    dofs = np.zeros(nt * (polynomial_degree + 1))
+    dofs[0] = 1.0
+
+    evaluator_from_vector = pb.LegendreBasisEvaluator(dofs, polynomial_degree, nt, T)
+    evaluator_from_column = pb.LegendreBasisEvaluator(dofs[:, None], polynomial_degree, nt, T)
+
+    t_check = np.linspace(1e-4, T - 1e-4, 10)
+    np.testing.assert_allclose(
+        evaluator_from_column.evaluate(t_check),
+        evaluator_from_vector.evaluate(t_check),
+    )
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

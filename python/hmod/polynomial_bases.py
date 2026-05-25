@@ -1,5 +1,14 @@
 import numpy as np
 import scipy.sparse as sp
+
+
+def _as_1d_coefficients(values: np.ndarray) -> np.ndarray:
+    values = np.asarray(values)
+    if values.ndim == 2 and values.shape[1] == 1:
+        return values[:, 0]
+    return values
+
+
 class LegendreBasis:
     def __init__(self, polynomial_degree : int, nt : int, T : float):
         from hmod.hmod import LegendreBasis
@@ -10,6 +19,7 @@ class LegendreBasis:
 
     def evaluate(self, t, legendre_vals : np.ndarray):
         """Evaluate the Legendre polynomial of given degree at x."""
+        legendre_vals = _as_1d_coefficients(legendre_vals)
         evaluator = np.vectorize(lambda t : self._legendre_basis.evaluate_at(t, legendre_vals))
         return evaluator(t)
 
@@ -33,10 +43,11 @@ class LegendreBasisEvaluator:
         self.nt = nt
         self.T = T
         self._legendre_basis_evaluator = LegendreBasisEvaluator(polynomial_degree, nt, T)
-        self._legendre_basis_evaluator.set_dofs(dofs)
+        self.set_dofs(dofs)
 
     def set_dofs(self, dofs : np.ndarray):
         """Set the DOFs for the evaluator."""
+        dofs = _as_1d_coefficients(dofs)
         self._legendre_basis_evaluator.set_dofs(dofs)
 
     def evaluate(self, t):
@@ -167,7 +178,6 @@ def get_legendre_derivative_matrix(nt: int, p: int, T: float, square: bool = Tru
                 blocks[m][n] = scale * (2*m + 1) * I
 
     return sp.bmat(blocks, format="csr")
-
 
 
 
