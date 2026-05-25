@@ -92,7 +92,7 @@ def test_I_H_against_dense():
     T = 1.0
     polynomial_degree_trial = 1
     polynomial_degree_test = 1
-    Mt_fft = hm.get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt, polynomial_degree_trial, polynomial_degree_test, 0, 0, T)
+    Mt_fft = hm.get_hilbert_matrix_for_derivatives_lagrange_lagrange(nt, polynomial_degree_trial, polynomial_degree_test, 0, 0, T)
     #get a random vector
     np.random.seed(0)
     x = np.random.rand(nt*(polynomial_degree_trial)+1).astype(np.float64)
@@ -110,7 +110,7 @@ def test_rhs_against_dense():
     f_vec = 0.5 * (f_analytic(tpoints[:-1]) + f_analytic(tpoints[1:]))
     polynomial_degree_test = 1
     polynomial_degree_rhs = 0
-    rhs_builder = hm.get_hilbert_matrix_with_derivatives_legendre_lagrange(nt, polynomial_degree_rhs, polynomial_degree_test, 0, 0, T)
+    rhs_builder = hm.get_hilbert_matrix_for_derivatives_legendre_lagrange(nt, polynomial_degree_rhs, polynomial_degree_test, 0, 0, T)
     rhs_fft = rhs_builder @ f_vec
     rhs_dense = DENSE_RHS_COS_PHASE5_NT50
     diff_vec = rhs_dense - rhs_fft
@@ -123,7 +123,7 @@ def test_dt_H_against_dense():
     T = 1.0
     polynomial_degree_trial = 1
     polynomial_degree_test = 1
-    At_fft = hm.get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt, polynomial_degree_trial, polynomial_degree_test, 1, 0, T)
+    At_fft = hm.get_hilbert_matrix_for_derivatives_lagrange_lagrange(nt, polynomial_degree_trial, polynomial_degree_test, 1, 0, T)
     #get a random vector
     np.random.seed(0)
     x = np.random.rand(nt*(polynomial_degree_trial)+1).astype(np.float64)

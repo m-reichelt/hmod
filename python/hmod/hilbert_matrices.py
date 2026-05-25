@@ -240,9 +240,9 @@ def get_operator_I_H_legendre_legendre(nt: int, pol_deg_trial: int, pol_deg_test
     return (final_time * 0.5) * T.H @ K @ U
 
 
-def get_hilbert_matrix_with_derivatives_legendre_legendre(nt: int, pol_deg_trial: int, pol_deg_test: int,
-                                                          derivatives_trial: int, derivatives_test: int,
-                                                          final_time: float):
+def get_hilbert_matrix_for_derivatives_legendre_legendre(nt: int, pol_deg_trial: int, pol_deg_test: int,
+                                                         derivatives_trial: int, derivatives_test: int,
+                                                         final_time: float):
     r"""Return a Hilbert matrix in Legendre trial/test bases.
 
     Rows correspond to test basis functions and columns to trial basis
@@ -271,9 +271,9 @@ def get_hilbert_matrix_with_derivatives_legendre_legendre(nt: int, pol_deg_trial
     return Mat
 
 
-def get_hilbert_matrix_with_derivatives_legendre_lagrange(nt: int, pol_deg_trial: int, pol_deg_test: int,
-                                                          derivatives_trial: int, derivatives_test: int,
-                                                          final_time: float):
+def get_hilbert_matrix_for_derivatives_legendre_lagrange(nt: int, pol_deg_trial: int, pol_deg_test: int,
+                                                         derivatives_trial: int, derivatives_test: int,
+                                                         final_time: float):
     r"""Return a Hilbert matrix with Legendre trial and Lagrange test basis.
 
     With ``i = derivatives_trial`` and ``j = derivatives_test``, the matrix
@@ -284,17 +284,17 @@ def get_hilbert_matrix_with_derivatives_legendre_lagrange(nt: int, pol_deg_trial
     where ``phi_m`` is a Legendre trial basis function and ``psi_r`` is a
     Lagrange test basis function.
     """
-    K = get_hilbert_matrix_with_derivatives_legendre_legendre(nt, pol_deg_trial
-                                                              , pol_deg_test, derivatives_trial, derivatives_test,
-                                                              final_time)
+    K = get_hilbert_matrix_for_derivatives_legendre_legendre(
+        nt, pol_deg_trial, pol_deg_test, derivatives_trial, derivatives_test, final_time
+    )
     trans = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_test, nt))
 
     return trans.T @ K
 
 
-def get_hilbert_matrix_with_derivatives_lagrange_legendre(nt: int, pol_deg_trial: int, pol_deg_test: int,
-                                                          derivatives_trial: int, derivatives_test: int,
-                                                          final_time: float):
+def get_hilbert_matrix_for_derivatives_lagrange_legendre(nt: int, pol_deg_trial: int, pol_deg_test: int,
+                                                         derivatives_trial: int, derivatives_test: int,
+                                                         final_time: float):
     r"""Return a Hilbert matrix with Lagrange trial and Legendre test basis.
 
     With ``i = derivatives_trial`` and ``j = derivatives_test``, the matrix
@@ -305,17 +305,17 @@ def get_hilbert_matrix_with_derivatives_lagrange_legendre(nt: int, pol_deg_trial
     where ``phi_m`` is a Lagrange trial basis function and ``psi_r`` is a
     Legendre test basis function.
     """
-    K = get_hilbert_matrix_with_derivatives_legendre_legendre(nt, pol_deg_trial
-                                                              , pol_deg_test, derivatives_trial, derivatives_test,
-                                                              final_time)
+    K = get_hilbert_matrix_for_derivatives_legendre_legendre(
+        nt, pol_deg_trial, pol_deg_test, derivatives_trial, derivatives_test, final_time
+    )
     trans = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_trial, nt))
 
     return K @ trans
 
 
-def get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt: int, pol_deg_trial: int, pol_deg_test: int,
-                                                          derivatives_trial: int, derivatives_test: int,
-                                                          final_time: float):
+def get_hilbert_matrix_for_derivatives_lagrange_lagrange(nt: int, pol_deg_trial: int, pol_deg_test: int,
+                                                         derivatives_trial: int, derivatives_test: int,
+                                                         final_time: float):
     r"""Return a Hilbert matrix with Lagrange trial/test bases.
 
     With ``i = derivatives_trial`` and ``j = derivatives_test``, the matrix
@@ -327,10 +327,17 @@ def get_hilbert_matrix_with_derivatives_lagrange_lagrange(nt: int, pol_deg_trial
     Lagrange test basis function. This is the common form used, for example,
     in the hybrid ODE bilinear form.
     """
-    K = get_hilbert_matrix_with_derivatives_legendre_legendre(nt, pol_deg_trial
-                                                              , pol_deg_test, derivatives_trial, derivatives_test,
-                                                              final_time)
+    K = get_hilbert_matrix_for_derivatives_legendre_legendre(
+        nt, pol_deg_trial, pol_deg_test, derivatives_trial, derivatives_test, final_time
+    )
     trans = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_trial, nt))
     transT = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_test, nt))
 
     return transT.T @ K @ trans
+
+
+# Backwards-compatible aliases for the previous public names.
+get_hilbert_matrix_with_derivatives_legendre_legendre = get_hilbert_matrix_for_derivatives_legendre_legendre
+get_hilbert_matrix_with_derivatives_legendre_lagrange = get_hilbert_matrix_for_derivatives_legendre_lagrange
+get_hilbert_matrix_with_derivatives_lagrange_legendre = get_hilbert_matrix_for_derivatives_lagrange_legendre
+get_hilbert_matrix_with_derivatives_lagrange_lagrange = get_hilbert_matrix_for_derivatives_lagrange_lagrange
