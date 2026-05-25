@@ -3,6 +3,31 @@ from scipy.sparse.linalg import LinearOperator
 import numpy as np
 
 
+class GMRESCounter:
+    """Callable iteration counter for ``scipy.sparse.linalg.gmres``.
+
+    The callback argument is stored as the current residual. With SciPy's
+    default GMRES callback behavior this is the preconditioned residual norm.
+    """
+
+    def __init__(self, print_residual: bool = False):
+        self.print_residual = print_residual
+        self.niter = 0
+        self.residuals = []
+
+    def __call__(self, residual):
+        self.niter += 1
+        self.residuals.append(residual)
+        if self.print_residual:
+            print(f"GMRES iteration {self.niter}: residual = {residual}")
+
+    @property
+    def current_residual(self):
+        """Return the most recently reported residual, if available."""
+        if not self.residuals:
+            return None
+        return self.residuals[-1]
+
 
 class LU_solver(scipy.sparse.linalg.LinearOperator):
     """LinearOperator wrapper around a sparse LU factorization."""
