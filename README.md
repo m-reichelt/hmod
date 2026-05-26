@@ -19,8 +19,8 @@ and
 \langle \partial_t^i u, \mathcal{H}_T \partial_t^j v \rangle_I,
 ```
 
-where `\mathcal{H}_T` denotes the modified Hilbert transform on
-`I = (0, T)`. Standard matrices are assembled as sparse SciPy matrices.
+where $\mathcal{H}_T$ denotes the modified Hilbert transform on
+$I = (0, T)$. Standard matrices are assembled as sparse SciPy matrices.
 Hilbert-transform matrices are represented as SciPy `LinearOperator`s and use
 FFT-based transforms for efficient application.
 
@@ -120,7 +120,7 @@ B = AH + spla.aslinearoperator(A) + mu * (MH + spla.aslinearoperator(M))
 ```
 
 The matrices are assembled before imposing homogeneous initial conditions. For
-a Lagrange space, the first degree of freedom is the value at `t = 0`.
+a Lagrange space, the first degree of freedom is the value at $t = 0$.
 
 ## Documentation
 
