@@ -3,21 +3,21 @@
 This page turns the notebook `notebooks/ode_hybrid.ipynb` into a compact
 script-style reference. The problem is
 
-$$
+```math
 \partial_t u + \mu u = f,
 \qquad
 u(0)=0,
 \qquad
 I=(0,T).
-$$
+```
 
 The manufactured solution is
 
-$$
+```math
 u(t) = \sin(\pi t),
 \qquad
 f(t) = \pi \cos(\pi t) + \mu \sin(\pi t).
-$$
+```
 
 ## Imports And Data
 

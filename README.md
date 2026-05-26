@@ -9,15 +9,15 @@ piecewise polynomial bases.
 
 The main routines assemble or apply bilinear forms of the type
 
-$$
+```math
 \langle \partial_t^i u, \partial_t^j v \rangle_I
-$$
+```
 
 and
 
-$$
+```math
 \langle \partial_t^i u, \mathcal{H}_T \partial_t^j v \rangle_I,
-$$
+```
 
 where `\mathcal{H}_T` denotes the modified Hilbert transform on
 `I = (0, T)`. Standard matrices are assembled as sparse SciPy matrices.
@@ -38,14 +38,15 @@ and import it in Python as `hmod`:
 import hmod as hm
 ```
 
-For development from a checkout:
+For development from a checkout in the root folder of the repository, run
 
 ```bash
-pip install -e ".[tests]"
+maturin develop -r
 ```
 
-The package is built with `maturin`, because part of the basis evaluation code
-is implemented in Rust.
+This will install the package inside the current Python environment.
+The package is built with [maturin](https://www.maturin.rs/), because part of the basis evaluation code
+is implemented in Rust. Note, that the Rust toolchain must be installed to build the package from source.
 
 ## Executable Binder Example
 
@@ -63,10 +64,10 @@ launch may take a few minutes while Binder builds the environment.
 The following builds the standard and Hilbert parts of the temporal bilinear
 form
 
-$$
+```math
 \langle \partial_t u, (\mathcal{H}_T + I)v \rangle_I
 + \mu \langle u, (\mathcal{H}_T + I)v \rangle_I
-$$
+```
 
 for continuous Lagrange trial and test functions.
 

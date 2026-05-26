@@ -44,18 +44,18 @@ project README.
 For trial basis functions $\phi_m$ and test basis functions $\psi_r$, the main
 operators represent entries of the form
 
-$$
+```math
 A_{r,m} =
 \langle \partial_t^i \phi_m, \partial_t^j \psi_r \rangle_I
-$$
+```
 
 or
 
-$$
+```math
 A^{\mathcal{H}}_{r,m} =
 \langle \partial_t^i \phi_m,
         \mathcal{H}_T \partial_t^j \psi_r \rangle_I .
-$$
+```
 
 The first basis name in an assembly function is always the trial basis and the
 second basis name is always the test basis, for example

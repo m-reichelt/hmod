@@ -29,10 +29,10 @@ basis. Rows correspond to tests and columns correspond to trials.
 Standard matrices live in `hmod.standard_matrices`. They return sparse CSR
 matrices and represent
 
-$$
+```math
 A_{r,m}
 = \langle \partial_t^i \phi_m, \partial_t^j \psi_r \rangle_I.
-$$
+```
 
 Example: assemble a derivative matrix and a mass matrix in continuous Lagrange
 basis.
@@ -76,11 +76,11 @@ Different polynomial degrees for trial and test spaces are supported through
 Hilbert-transform routines live in `hmod.hilbert_matrices`. They return SciPy
 `LinearOperator` objects and represent
 
-$$
+```math
 A^{\mathcal{H}}_{r,m}
 = \langle \partial_t^i \phi_m,
         \mathcal{H}_T \partial_t^j \psi_r \rangle_I.
-$$
+```
 
 They are matrix-free because the corresponding operators are dense in the
 physical basis. Internally, the package uses sine/cosine transforms and a
@@ -145,9 +145,9 @@ f_h = project_rhs_onto_legendre_basis(f, nt=nt, polynomial_degree_test=p, T=T)
 
 To assemble the functional
 
-$$
+```math
 \langle f_h, (\mathcal{H}_T + I)v_h \rangle_I
-$$
+```
 
 with a Legendre representation of $f_h$ and a Lagrange test basis, combine the
 Legendre-Lagrange standard and Hilbert operators:

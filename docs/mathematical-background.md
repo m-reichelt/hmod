@@ -2,9 +2,9 @@
 
 The package is written for temporal discretizations on
 
-$$
+```math
 I = (0,T)
-$$
+```
 
 with a uniform partition into $n_t$ intervals. The local mesh width is
 $h = T / n_t$.
@@ -13,34 +13,34 @@ $h = T / n_t$.
 
 The notebook example solves
 
-$$
+```math
 \partial_t u + \mu u = f \quad \text{on } I,
 \qquad
 u(0) = 0.
-$$
+```
 
 The hybrid variational formulation is: find $u$ in the trial space $X$ such
 that
 
-$$
+```math
 b(u,v)
 = \langle \partial_t u, (\mathcal{H}_T + I)v \rangle_I
 + \mu \langle u, (\mathcal{H}_T + I)v \rangle_I
 = \langle f, (\mathcal{H}_T + I)v \rangle_I .
-$$
+```
 
 Here $\mathcal{H}_T$ is the modified Hilbert transform. A typical norm for the
 trial space in the notebook is
 
-$$
+```math
 \|u\|_X^2 =
 \|u\|_{H^{1/2}(I)}^2 + \|u\|_{L^2(I)}^2 .
-$$
+```
 
 In the ODE system, the mass contribution is weighted by $\mu>0$. On the discrete
 level, this leads to four building blocks:
 
-$$
+```math
 \langle \partial_t u_h, v_h \rangle_I,
 \qquad
 \langle u_h, v_h \rangle_I,
@@ -48,7 +48,7 @@ $$
 \langle \partial_t u_h, \mathcal{H}_T v_h \rangle_I,
 \qquad
 \langle u_h, \mathcal{H}_T v_h \rangle_I.
-$$
+```
 
 `hmodFFT` provides these blocks for arbitrary derivative orders and for all
 combinations of Legendre and Lagrange trial and test bases.
@@ -82,10 +82,10 @@ the package applies the transformation matrix returned by
 
 For example, a Lagrange-Lagrange matrix is assembled conceptually as
 
-$$
+```math
 A_{\text{Lag},\text{Lag}}
 = T_{\text{test}}^T A_{\text{Leg},\text{Leg}} T_{\text{trial}},
-$$
+```
 
 where $T_{\text{trial}}$ and $T_{\text{test}}$ map Lagrange coefficients into Legendre
 coefficients on the same uniform mesh.
