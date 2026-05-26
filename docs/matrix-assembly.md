@@ -135,7 +135,7 @@ This is the common pattern for the hybrid ODE formulation.
 
 ## Right-Hand Sides
 
-For a function `f`, project it into the discontinuous Legendre basis:
+For a function $f$, project it into the discontinuous Legendre basis:
 
 ```python
 from hmod.standard_matrices import project_rhs_onto_legendre_basis
@@ -149,7 +149,7 @@ $$
 \langle f_h, (\mathcal{H}_T + I)v_h \rangle_I
 $$
 
-with a Legendre representation of `f_h` and a Lagrange test basis, combine the
+with a Legendre representation of $f_h$ and a Lagrange test basis, combine the
 Legendre-Lagrange standard and Hilbert operators:
 
 ```python
@@ -236,3 +236,29 @@ sol, info = spla.gmres(B0, rhs0, M=BPX, callback=counter, rtol=1e-10)
 
 `BPXPreconditioner` acts on the reduced vector after the homogeneous initial
 condition has been removed.
+
+## Converting Operators To Dense Matrices
+
+For testing and debugging it can be useful to materialize a sparse matrix or a
+matrix-free `LinearOperator` as a dense NumPy array. This should generally not
+be done in production code. The Hilbert-transform operators are deliberately
+implemented matrix-free because the dense matrices can be large and expensive to
+store/apply.
+
+Sparse matrices can be converted directly:
+
+```python
+A_dense = A_t.toarray()
+```
+
+For a `LinearOperator`, use the helper in `hmod.matrix_tools`:
+
+```python
+from hmod.matrix_tools import linear_operator_to_matrix
+
+AH_dense = linear_operator_to_matrix(AH_t)
+```
+
+The helper applies the operator to the identity matrix, so the result has the
+same shape as the operator. This is convenient for comparisons against reference
+matrices in tests, but it costs dense matrix memory and work.

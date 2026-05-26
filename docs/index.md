@@ -39,7 +39,7 @@ contains a runnable version of the hybrid ODE example.
 
 ## What The Package Builds
 
-For trial basis functions `\phi_m` and test basis functions `\psi_r`, the main
+For trial basis functions $\phi_m$ and test basis functions $\psi_r$, the main
 operators represent entries of the form
 
 $$

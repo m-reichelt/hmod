@@ -6,8 +6,8 @@ $$
 I = (0,T)
 $$
 
-with a uniform partition into `nt` intervals. The local mesh width is
-`h = T / nt`.
+with a uniform partition into $n_t$ intervals. The local mesh width is
+$h = T / n_t$.
 
 ## Model Hybrid ODE
 
@@ -19,7 +19,7 @@ $$
 u(0) = 0.
 $$
 
-The hybrid variational formulation is: find `u` in the trial space `X` such
+The hybrid variational formulation is: find $u$ in the trial space $X$ such
 that
 
 $$
@@ -29,7 +29,7 @@ b(u,v)
 = \langle f, (\mathcal{H}_T + I)v \rangle_I .
 $$
 
-Here `\mathcal{H}_T` is the modified Hilbert transform. A typical norm for the
+Here $\mathcal{H}_T$ is the modified Hilbert transform. A typical norm for the
 trial space in the notebook is
 
 $$
@@ -37,7 +37,7 @@ $$
 \|u\|_{H^{1/2}(I)}^2 + \|u\|_{L^2(I)}^2 .
 $$
 
-In the ODE system, the mass contribution is weighted by `\mu`. On the discrete
+In the ODE system, the mass contribution is weighted by $\mu>0$. On the discrete
 level, this leads to four building blocks:
 
 $$
@@ -87,7 +87,7 @@ A_{\text{Lag},\text{Lag}}
 = T_{\text{test}}^T A_{\text{Leg},\text{Leg}} T_{\text{trial}},
 $$
 
-where `T_trial` and `T_test` map Lagrange coefficients into Legendre
+where $T_{\text{trial}}$ and $T_{\text{test}}$ map Lagrange coefficients into Legendre
 coefficients on the same uniform mesh.
 
 ## Rows, Columns, And Derivatives
@@ -106,7 +106,7 @@ the temporal derivative in the trial argument.
 
 Assembly routines do not impose homogeneous initial conditions. In a continuous
 Lagrange space, the first degree of freedom corresponds to the value at
-`t = 0`. For the condition `u(0)=0`, remove or restrict that first degree of
+$t = 0$. For the condition $u(0)=0$, remove or restrict that first degree of
 freedom after assembly.
 
 For matrix-free systems, use `hmod.dof_handling.DofRestrictorSymmetric`:
