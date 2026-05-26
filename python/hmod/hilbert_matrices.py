@@ -4,7 +4,7 @@ import numpy as np
 import hmod.block_operations as block_ops
 import hmod.standard_matrices as sm
 import hmod.polynomial_bases as pb
-from scipy.special import factorial, zeta
+from scipy.special import factorial, spherical_jn, zeta
 
 
 class DST_IV(LinearOperator):
@@ -191,6 +191,132 @@ def second_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_
     return sum_val / nt ** 2
 
 
+def _a_m_i(m: int, i: int):
+    return (-1) ** i * a_k_12_fun(2 * i, m)
+
+
+def _b_m_i(m: int, i: int):
+    return (-1) ** i * a_k_12_fun(2 * i + 1, m)
+
+
+def _kernel_diagonal_entries_zeta(nt: int, pol_deg_trial: int, pol_deg_test: int):
+    """Vectorized diagonal entries for one transformed Hilbert kernel block."""
+    r = pol_deg_test
+    m = pol_deg_trial
+
+    diagonal_indices = np.arange(nt, dtype=np.float64)
+    beta = np.pi * (2 * diagonal_indices + 1) / (4 * nt)
+    q_plus = 1.0 + beta / np.pi
+    q_minus = 1.0 - beta / np.pi
+
+    sigma_r = np.sin(beta - r * np.pi / 2)
+    sigma_m = np.sin(beta - m * np.pi / 2)
+    kappa_r = np.cos(beta - r * np.pi / 2)
+    kappa_m = np.cos(beta - m * np.pi / 2)
+
+    first = spherical_jn(r, beta) * spherical_jn(m, beta)
+    for i in range(0, r // 2 + 1):
+        for j in range(0, m // 2 + 1):
+            arg = 2 * (i + j) + 2
+            first += (
+                _a_m_i(r, i)
+                * _a_m_i(m, j)
+                * sigma_r
+                * sigma_m
+                * zeta(arg, q_plus)
+                / np.pi ** arg
+            )
+    for i in range(0, r // 2 + 1):
+        for j in range(0, (m - 1) // 2 + 1):
+            arg = 2 * (i + j) + 3
+            first += (
+                _a_m_i(r, i)
+                * _b_m_i(m, j)
+                * sigma_r
+                * kappa_m
+                * zeta(arg, q_plus)
+                / np.pi ** arg
+            )
+    for i in range(0, (r - 1) // 2 + 1):
+        for j in range(0, m // 2 + 1):
+            arg = 2 * (i + j) + 3
+            first += (
+                _b_m_i(r, i)
+                * _a_m_i(m, j)
+                * kappa_r
+                * sigma_m
+                * zeta(arg, q_plus)
+                / np.pi ** arg
+            )
+    for i in range(0, (r - 1) // 2 + 1):
+        for j in range(0, (m - 1) // 2 + 1):
+            arg = 2 * (i + j) + 4
+            first += (
+                _b_m_i(r, i)
+                * _b_m_i(m, j)
+                * kappa_r
+                * kappa_m
+                * zeta(arg, q_plus)
+                / np.pi ** arg
+            )
+
+    second = np.zeros(nt, dtype=np.float64)
+    for i in range(0, r // 2 + 1):
+        for j in range(0, m // 2 + 1):
+            arg = 2 * (i + j) + 2
+            second += (
+                _a_m_i(r, i)
+                * _a_m_i(m, j)
+                * sigma_r
+                * sigma_m
+                * zeta(arg, q_minus)
+                * (-1) ** (r + m)
+                / np.pi ** arg
+            )
+    for i in range(0, r // 2 + 1):
+        for j in range(0, (m - 1) // 2 + 1):
+            arg = 2 * (i + j) + 3
+            second += (
+                _a_m_i(r, i)
+                * _b_m_i(m, j)
+                * sigma_r
+                * kappa_m
+                * zeta(arg, q_minus)
+                * (-1) ** (r + m + 1)
+                / np.pi ** arg
+            )
+    for i in range(0, (r - 1) // 2 + 1):
+        for j in range(0, m // 2 + 1):
+            arg = 2 * (i + j) + 3
+            second += (
+                _b_m_i(r, i)
+                * _a_m_i(m, j)
+                * kappa_r
+                * sigma_m
+                * zeta(arg, q_minus)
+                * (-1) ** (r + m + 1)
+                / np.pi ** arg
+            )
+    for i in range(0, (r - 1) // 2 + 1):
+        for j in range(0, (m - 1) // 2 + 1):
+            arg = 2 * (i + j) + 4
+            second += (
+                _b_m_i(r, i)
+                * _b_m_i(m, j)
+                * kappa_r
+                * kappa_m
+                * zeta(arg, q_minus)
+                * (-1) ** (r + m)
+                / np.pi ** arg
+            )
+
+    second_branch_sign = -1.0
+    if pol_deg_trial % 2 != pol_deg_test % 2:
+        second_branch_sign = 1.0
+
+    return (first + second_branch_sign * second) / nt ** 2
+
+
 def get_kernel_matrix_for_degrees_zeta(nt: int, pol_deg_trial: int, pol_deg_test: int):
     """Return one diagonal kernel block for fixed Legendre degrees.
 
@@ -199,14 +325,8 @@ def get_kernel_matrix_for_degrees_zeta(nt: int, pol_deg_trial: int, pol_deg_test
     sine/cosine basis; the entries are evaluated with the zeta-series
     formula used for the modified Hilbert transform.
     """
-    fac = -1.
-    if pol_deg_trial % 2 != pol_deg_test % 2:
-        fac = 1.
-    entry_i = lambda i: first_branch_sum(i, nt, pol_deg_trial,
-                                         pol_deg_test) + fac * second_branch_sum(i, nt,
-                                                                                 pol_deg_trial,
-                                                                                 pol_deg_test)
-    return sparse.diags([entry_i(i) for i in range(nt)], format='csr')
+    entries = _kernel_diagonal_entries_zeta(nt, pol_deg_trial, pol_deg_test)
+    return sparse.diags(entries, format='csr')
 
 
 def get_kernel_matrix(nt: int, pol_deg_trial: int, pol_deg_test: int):

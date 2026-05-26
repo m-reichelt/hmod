@@ -87,6 +87,29 @@ def test_second_branch_sum():
     assert np.allclose(first_sum_brute_force, first_sum, atol=1e-5)
 
 
+def test_kernel_matrix_for_degrees_zeta_matches_scalar_branch_sums():
+    cases = [
+        (7, 5, 3),
+        (8, 4, 4),
+        (9, 2, 5),
+    ]
+    for nt, pol_deg_trial, pol_deg_test in cases:
+        second_branch_sign = -1.0
+        if pol_deg_trial % 2 != pol_deg_test % 2:
+            second_branch_sign = 1.0
+
+        expected = np.array([
+            hm.first_branch_sum(i, nt, pol_deg_trial, pol_deg_test)
+            + second_branch_sign * hm.second_branch_sum(i, nt, pol_deg_trial, pol_deg_test)
+            for i in range(nt)
+        ])
+        actual = hm.get_kernel_matrix_for_degrees_zeta(
+            nt, pol_deg_trial, pol_deg_test
+        ).diagonal()
+
+        assert np.allclose(actual, expected, rtol=1e-12, atol=1e-14)
+
+
 def test_I_H_against_dense():
     nt = 1
     T = 1.0
