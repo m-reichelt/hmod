@@ -21,12 +21,14 @@ class WeightedResidual:
         #define the projection matrix onto Legendre polynomials
         self.M_L = sm.get_legendre_legendre_matrix_for_derivatives(polynomial_degree_projection, polynomial_degree_projection, 0, 0, nt, T)
         #perform a sparse LU decomposition of M_L
-        #self.M_L_LU = sp.linalg.splu(self.M_L)
+        self.M_L_LU = sp.linalg.splu(self.M_L)
         self.n_modes = int(1e5)
         if residual_type == ResidualType.Standard:
             self.Mass = sm.get_legendre_lagrange_matrix_for_derivatives(polynomial_degree_projection, polynomial_degree_test, 0, 0, nt, T)
         elif residual_type == ResidualType.Hilbert:
-            self.Mass = hm.Operator_I_H_Legendre_Lagrange(self.n_modes, nt, polynomial_degree_projection, polynomial_degree_test)
+            self.Mass = hm.get_hilbert_matrix_for_derivatives_legendre_lagrange(
+                polynomial_degree_projection, polynomial_degree_test, 0, 0, nt, T
+            )
     def project_fun(self, residual_fun):
         res_vec_rhs = sm.rhs_quadrature(residual_fun, self.nt, self.polynomial_degree_projection, self.T)
         res_vec = self.M_L_LU.solve(res_vec_rhs)

@@ -39,13 +39,17 @@ def compute_h12_seminorm(f, T : float, quad_tol :float =1e-10):
     float: H1/2 seminorm of the vector.
     """
     import numpy as np
-    from hmod.hmod import h12_seminorm
+    from scipy.fft import dst
 
     nt = np.ceil(2*np.sqrt(1./quad_tol)).astype(int)
     timepoints = np.linspace(0, T, nt+1)
     f_samples = f(timepoints)
 
-    return h12_seminorm(f_samples)
-
+    n = len(f_samples)
+    h = 1.0 / n
+    f_hat = dst(f_samples, type=4)
+    omegas = np.pi * (np.arange(n) + 0.5)
+    seminorm_squared = 0.5 * h * h * np.sum(omegas * f_hat * f_hat)
+    return np.sqrt(seminorm_squared)
 
 

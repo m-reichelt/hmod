@@ -2,7 +2,30 @@ from scipy.sparse.linalg import LinearOperator
 import numpy as np
 
 class DofRestrictorSymmetric(LinearOperator):
-    """A linear operator that restricts a vector to the specified degrees of freedom (DOFs)."""
+    """Restrict a square operator to its active degrees of freedom.
+
+    This wrapper is useful for imposing essential conditions such as the
+    initial value ``u(0) = 0`` in temporal systems. It exposes the reduced
+    operator on all non-restricted DOFs. During a matrix-vector product, the
+    input vector is embedded into the full vector, the restricted DOFs are
+    filled with the prescribed values, the unrestricted operator is applied,
+    and only the active rows are returned.
+
+    For an unrestricted square operator ``A`` and a full vector split into
+    active and restricted DOFs, this corresponds to applying the active block
+    of ``A`` while accounting for fixed restricted values. For homogeneous
+    values, this is the usual row/column restriction.
+
+    Parameters
+    ----------
+    unrestricted_operator:
+        Square operator acting on the full set of DOFs.
+    restricted_dofs:
+        Indices of the DOFs to remove from the reduced operator.
+    restricted_dof_values:
+        Values inserted at ``restricted_dofs`` before applying the full
+        operator.
+    """
     def __init__(self, unrestricted_operator : LinearOperator
                  , restricted_dofs : np.ndarray, restricted_dof_values : np.ndarray):
         self.unrestricted_operator = unrestricted_operator
@@ -21,7 +44,7 @@ class DofRestrictorSymmetric(LinearOperator):
         super().__init__(dtype=self.dtype, shape=shape)
 
     def _matvec(self, x):
-        """Restrict the input vector x to the active DOFs."""
+        """Apply the restricted operator to a reduced vector."""
         x_full = np.zeros(self.unrestricted_operator.shape[0])
         x_full[self.active_dofs] = x.ravel()
         x_full[self.inactive_dofs] = self.restricted_dof_values
@@ -30,6 +53,7 @@ class DofRestrictorSymmetric(LinearOperator):
         return y_restricted
     
     def _matmat(self, X):
+        """Apply the restricted operator to multiple reduced vectors."""
         #do this explicitly in sequential way to avoid shape issues
         ncols = X.shape[1]
         result = np.zeros((self.shape[0], ncols))

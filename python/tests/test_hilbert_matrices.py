@@ -1,28 +1,133 @@
 import pytest
-from hmod.hilbert_matrices import Rhs_I_H_Lagrange_Lagrange, Operator_dt_H_Lagrange_Lagrange, Operator_I_H_Lagrange_Lagrange
 import numpy as np
-import scipy.sparse as sp
-from ngsolve import *
-from ngsolve.meshes import Make1DMesh
+import hmod.hilbert_matrices as hm
+import matplotlib.pyplot as plt
 
-def ngsolve_mass_matrix(tpoints):
+from hilbert_wrapper_reference_data import (
+    DENSE_HILBERT_MASS_NT1,
+    DENSE_HILBERT_STIFFNESS_HEAT_NT5,
+    DENSE_RHS_COS_PHASE5_NT50,
+)
 
-    nt = len(tpoints) - 1
-    mesh = Make1DMesh(n=nt)
-    V = H1(mesh, order=1)  # Linear elements with zero at t=0
 
-    a = BilinearForm(V)
-    a += InnerProduct(V.TrialFunction(), V.TestFunction()) * dx
-    a.Assemble()
+def _first_branch_sum_brute_force(diagonal_index: int, nt: int, polynomial_degree_trial: int, polynomial_degree_test: int):
+    assert 0 <= diagonal_index < nt, "Diagonal index must be between 0 and nt-1"
+    from scipy.special import spherical_jn as jn
 
-    rows,cols,vals = a.mat.COO()
-    import scipy.sparse as sp
-    M = sp.csr_matrix((vals,(rows,cols)))
+    alpha_k = lambda k: np.pi * (2 * k + 1) / (4 * nt)
+    alpha_q = lambda q: alpha_k(2 * q * nt + diagonal_index)
+    q_vals = np.arange(int(1e5))[::-1]
+    summand = jn(polynomial_degree_test, alpha_q(q_vals)) * jn(polynomial_degree_trial, alpha_q(q_vals))
+    return np.sum(summand) / (nt ** 2)
 
-    return M
+
+def _second_branch_sum_brute_force(diagonal_index: int, nt: int, polynomial_degree_trial: int, polynomial_degree_test: int):
+    assert 0 <= diagonal_index < nt, "Diagonal index must be between 0 and nt-1"
+    from scipy.special import spherical_jn as jn
+
+    alpha_k = lambda k: np.pi * (2 * k + 1) / (4 * nt)
+    alpha_q = lambda q: alpha_k(2 * nt * (q + 1) - 1 - diagonal_index)
+    q_vals = np.arange(int(1e5))[::-1]
+    summand = jn(polynomial_degree_test, alpha_q(q_vals)) * jn(polynomial_degree_trial, alpha_q(q_vals))
+    return np.sum(summand) / (nt ** 2)
+
+
+def test_trial_transform():
+    nt = 5
+    polynomial_degree = 3
+    workers = -1
+    U = hm.get_trial_transform(polynomial_degree, nt, workers=workers)
+
+    #get vector and try multiplication
+    x = np.random.rand(nt*(polynomial_degree+1))
+    Ux = U @ x
+    Uhx = U.H @ x
+    #get matrix and try multiplication
+    X = np.random.rand(nt*(polynomial_degree+1), 3)
+    UX = U @ X
+    UHX = U.H @ X
+
+    assert U.shape == (nt*(polynomial_degree+1), nt*(polynomial_degree+1))
+
+def test_test_transform():
+    nt = 5
+    polynomial_degree = 3
+    workers = -1
+    T = hm.get_test_transform(polynomial_degree, nt, workers=workers)
+
+    #get vector and try multiplication
+    x = np.random.rand(nt*(polynomial_degree+1))
+    Tx = T @ x
+    Thx = T.H @ x
+    #get matrix and try multiplication
+    X = np.random.rand(nt*(polynomial_degree+1), 3)
+    TX = T @ X
+    THX = T.H @ X
+
+    assert T.shape == (nt*(polynomial_degree+1), nt*(polynomial_degree+1))
+
+
+def test_first_branch_sum():
+    cases = [
+        (5, 4, 3, 2),
+        (5, 5, 5, 0),
+    ]
+    for polynomial_degree_trial, polynomial_degree_test, nt, diagonal_index in cases:
+        first_sum_brute_force = _first_branch_sum_brute_force(diagonal_index, nt, polynomial_degree_trial, polynomial_degree_test)
+        first_sum = hm.first_branch_sum(diagonal_index, nt, polynomial_degree_trial, polynomial_degree_test)
+        assert np.allclose(first_sum_brute_force, first_sum, atol=1e-5)
+
+def test_second_branch_sum():
+    polynomial_degree_trial = 5
+    polynomial_degree_test = 3
+    nt = 3
+    diagonal_index = 2
+    first_sum_brute_force = _second_branch_sum_brute_force(diagonal_index, nt, polynomial_degree_trial, polynomial_degree_test)
+    first_sum = hm.second_branch_sum(diagonal_index, nt, polynomial_degree_trial, polynomial_degree_test)
+    assert np.allclose(first_sum_brute_force, first_sum, atol=1e-5)
+
+
+def test_kernel_matrix_for_degrees_zeta_matches_scalar_branch_sums():
+    cases = [
+        (7, 5, 3),
+        (8, 4, 4),
+        (9, 2, 5),
+    ]
+    for nt, polynomial_degree_trial, polynomial_degree_test in cases:
+        second_branch_sign = -1.0
+        if polynomial_degree_trial % 2 != polynomial_degree_test % 2:
+            second_branch_sign = 1.0
+
+        expected = np.array([
+            hm.first_branch_sum(i, nt, polynomial_degree_trial, polynomial_degree_test)
+            + second_branch_sign * hm.second_branch_sum(i, nt, polynomial_degree_trial, polynomial_degree_test)
+            for i in range(nt)
+        ])
+        actual = hm.get_kernel_matrix_for_degrees_zeta(
+            nt, polynomial_degree_trial, polynomial_degree_test
+        ).diagonal()
+
+        assert np.allclose(actual, expected, rtol=1e-12, atol=1e-14)
+
+
+def test_I_H_against_dense():
+    nt = 1
+    T = 1.0
+    polynomial_degree_trial = 1
+    polynomial_degree_test = 1
+    Mt_fft = hm.get_hilbert_matrix_for_derivatives_lagrange_lagrange(
+        polynomial_degree_trial, polynomial_degree_test, 0, 0, nt, T
+    )
+    #get a random vector
+    np.random.seed(0)
+    x = np.random.rand(nt*(polynomial_degree_trial)+1).astype(np.float64)
+    I_H_fft = Mt_fft @ x
+    I_H_dense = DENSE_HILBERT_MASS_NT1 @ x
+    diff_vec = I_H_dense - I_H_fft
+    diff = np.linalg.norm(diff_vec)
+    assert diff < 1e-4
 
 def test_rhs_against_dense():
-    import hilbertWrapper.hilbertWrapper as hw
     f_analytic = lambda t: np.cos(2 * np.pi * t+5)
     nt = 50
     T = 1.0
@@ -30,85 +135,33 @@ def test_rhs_against_dense():
     f_vec = 0.5 * (f_analytic(tpoints[:-1]) + f_analytic(tpoints[1:]))
     polynomial_degree_test = 1
     polynomial_degree_rhs = 0
-    n_modes = 100*nt
-    rhs_builder = Rhs_I_H_Lagrange_Lagrange(nmodes=n_modes, nt=nt, polynomial_degree_rhs=polynomial_degree_rhs, polynomial_degree_test=polynomial_degree_test)
+    rhs_builder = hm.get_hilbert_matrix_for_derivatives_legendre_lagrange(
+        polynomial_degree_rhs, polynomial_degree_test, 0, 0, nt, T
+    )
     rhs_fft = rhs_builder @ f_vec
-    #build the dense rhs matrix using hilbert wrapper
-    Fh = hw.get_rhs_mat(tpoints)
-    rhs_dense = Fh @ f_vec
+    rhs_dense = DENSE_RHS_COS_PHASE5_NT50
     diff_vec = rhs_dense - rhs_fft
     diff = np.linalg.norm(diff_vec)
     assert diff < 1e-4
 
 
 def test_dt_H_against_dense():
-    import hilbertWrapper.hilbertWrapper as hw
-    from hmod.matrix_tools import linear_operator_to_matrix
-    f_analytic = lambda t: np.cos(2 * np.pi * t+5)
     nt = 5
     T = 1.0
-    tpoints = np.linspace(0, T, nt+1)
     polynomial_degree_trial = 1
     polynomial_degree_test = 1
-    At_fft = Operator_dt_H_Lagrange_Lagrange(nmodes=40 * nt, nt=nt, polynomial_degree_trial=polynomial_degree_trial, polynomial_degree_test=polynomial_degree_test)
-    At_fft_dense = linear_operator_to_matrix(At_fft)
-    M = np.array(ngsolve_mass_matrix(tpoints).todense())
-    #build the dense dt_H matrix using hilbert wrapper
-    Ath = hw.get_hilbert_stiffness_heat(tpoints)
+    At_fft = hm.get_hilbert_matrix_for_derivatives_lagrange_lagrange(
+        polynomial_degree_trial, polynomial_degree_test, 1, 0, nt, T
+    )
     #get a random vector
     np.random.seed(0)
     x = np.random.rand(nt*(polynomial_degree_trial)+1).astype(np.float64)
     x[0] = 0.0  #enforce zero at t=0 as first column can be rubbish (either in old or new version)
     dtH_fft = At_fft @ x
-    dtH_dense = Ath @ x
+    dtH_dense = DENSE_HILBERT_STIFFNESS_HEAT_NT5 @ x
     diff_vec = dtH_dense - dtH_fft
     diff = np.linalg.norm(diff_vec)
     assert diff < 1e-4
-
-def test_I_H_against_dense():
-    import hilbertWrapper.hilbertWrapper as hw
-    f_analytic = lambda t: np.cos(2 * np.pi * t+5)
-    nt = 5
-    T = 1.0
-    tpoints = np.linspace(0, T, nt+1)
-    polynomial_degree_trial = 1
-    polynomial_degree_test = 1
-    n_modes = 8*nt
-    Mt_fft = Operator_I_H_Lagrange_Lagrange(nmodes=n_modes, nt=nt, polynomial_degree_trial=polynomial_degree_trial, polynomial_degree_test=polynomial_degree_test)
-    #do it also via rhs
-    rhs_builder = Rhs_I_H_Lagrange_Lagrange(nmodes=n_modes, nt=nt, polynomial_degree_rhs=polynomial_degree_trial, polynomial_degree_test=polynomial_degree_test)
-    #build the dense dt_H matrix using hilbert wrapper
-    Mth = hw.get_hilbert_mass(tpoints)
-    #get a random vector
-    np.random.seed(0)
-    x = np.random.rand(nt*(polynomial_degree_trial)+1).astype(np.float64)
-    I_H_fft = Mt_fft @ x
-    I_H_dense = Mth @ x
-    I_H_rhs = rhs_builder @ (Mt_fft.Ttrial @ x)
-    diff_vec = I_H_dense - I_H_fft
-    diff = np.linalg.norm(diff_vec)
-    assert diff < 1e-4
-
-def test_mat_mat():
-    import hilbertWrapper.hilbertWrapper as hw
-    f_analytic = lambda t: np.cos(2 * np.pi * t+5)
-    nt = 5
-    T = 1.0
-    tpoints = np.linspace(0, T, nt+1)
-    polynomial_degree_trial = 1
-    polynomial_degree_test = 1
-    n_modes = 8*nt
-    Mt_fft = Operator_I_H_Lagrange_Lagrange(nmodes=n_modes, nt=nt, polynomial_degree_trial=polynomial_degree_trial, polynomial_degree_test=polynomial_degree_test)
-    #do it also via rhs
-    rhs_builder = Rhs_I_H_Lagrange_Lagrange(nmodes=n_modes, nt=nt, polynomial_degree_rhs=polynomial_degree_trial, polynomial_degree_test=polynomial_degree_test)
-    #build the dense dt_H matrix using hilbert wrapper
-    Mth = hw.get_hilbert_mass(tpoints)
-    #get a random vector
-    np.random.seed(0)
-    x = np.random.rand(nt*(polynomial_degree_trial)+1, 5).astype(np.float64)
-    I_H_fft = Mt_fft @ x
-    I_H_dense = Mth @ x
-    I_H_rhs = rhs_builder @ (Mt_fft.Ttrial @ x)
 
 
 if __name__ == "__main__":

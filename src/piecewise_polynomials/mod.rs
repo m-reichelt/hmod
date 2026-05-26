@@ -3,7 +3,6 @@
 use scirs2_special::legendre;
 use nalgebra::{DMatrix, DVector, Dyn, U1};
 use nalgebra_sparse::{coo::CooMatrix, csr::CsrMatrix};
-use crate::transformations::sparse_matrix_tools::csr_block_from_ndarray;
 
 pub(crate) struct LegendreBasis{
     degree: usize,
@@ -42,10 +41,6 @@ impl LegendreBasis {
             n_intervals,
             T,
         }
-    }
-    pub fn get_dofs_for_interval(&self, interval_index: usize) -> Vec<usize> {
-        let start = interval_index * (self.degree + 1);
-        (start..start + self.degree + 1).collect()
     }
 
     pub fn evaluate_for_interval(&self, t: f64, interval_index: usize, dof_vals : &DMatrix<f64>) -> f64 {
@@ -160,6 +155,7 @@ fn lagrange_to_legendre_unit_interval(degree: usize) -> DMatrix<f64> {
 
 
 /// Transform from reference interval [-1, 1] to arbitrary interval [a, b]
+#[cfg(test)]
 fn transform_from_unit_interval_to_interval(
     t_ref : f64,
     interval : (f64, f64)
@@ -196,8 +192,6 @@ fn transform_from_interval_to_unit_interval(
 pub(crate) struct LagrangeBasis{
     degree: usize,
     n_intervals: usize,
-    intervals : Vec<(f64, f64)>,
-    T : f64, // our domain is [0,T]
     lagrange_points : Vec<f64>, // dofs on the interval [0, T]
 }
 
@@ -231,8 +225,6 @@ impl LagrangeBasis {
         Self {
             degree,
             n_intervals,
-            intervals,
-            T,
             lagrange_points,
         }
     }
@@ -249,8 +241,9 @@ impl LagrangeBasis {
     /// Convert Lagrange basis function values to Legendre basis function values on each interval.
     /// Input: lagrange_vals is a vector of length n_intervals * degree +1 containing the values of the Lagrange basis functions at their respective DOFs.
     /// Output: A matrix of size (n_intervals, degree) where each row contains the Legendre basis function values for that interval.
+    #[cfg(test)]
     pub fn to_legendre_basis_vals(&self, lagrange_vals: &DVector<f64>) -> DMatrix<f64> {
-        assert_eq!(lagrange_vals.nrows(), self.intervals.len()*self.degree + 1, "Input lagrange_vals length does not match expected number of DOFs.");
+        assert_eq!(lagrange_vals.nrows(), self.n_intervals*self.degree + 1, "Input lagrange_vals length does not match expected number of DOFs.");
         let M_unit_interval = lagrange_to_legendre_unit_interval(self.degree);
         let mut legendre_vals = DMatrix::zeros(self.n_intervals, self.degree+1);
         for l in 0..self.n_intervals {
@@ -266,8 +259,9 @@ impl LagrangeBasis {
     }
 
     /// mainly for testing purposes, applies the same as to_legendre_basis_vals using the csr matrix
+    #[cfg(test)]
     pub fn to_legendre_basis_vals_by_matrix(&self, lagrange_vals: &DVector<f64>) -> DMatrix<f64> {
-        assert_eq!(lagrange_vals.nrows(), self.intervals.len()*self.degree + 1, "Input lagrange_vals length does not match expected number of DOFs.");
+        assert_eq!(lagrange_vals.nrows(), self.n_intervals*self.degree + 1, "Input lagrange_vals length does not match expected number of DOFs.");
         let mut legendre_vals = DMatrix::zeros(self.n_intervals, self.degree+1);
         for m in 0..=self.degree {
             let Tm = self.to_legendre_basis_matrix_for_pol_degree(m);
@@ -279,7 +273,7 @@ impl LagrangeBasis {
 
     /// get the transformation matrix to legendre dofs (stacked, i.e [d0; d1; ...])
     pub fn get_transormation_matrix_to_legendre(&self) -> CsrMatrix<f64> {
-        use crate::transformations::sparse_matrix_tools::csr_block_from_ndarray;
+        use crate::sparse_matrix_tools::csr_block_from_ndarray;
         use ndarray::{ Array2};
         let transformation_matrices : Vec<CsrMatrix<f64>> = (0..=self.degree).map(|d| self.to_legendre_basis_matrix_for_pol_degree(d)).collect();
         let mat_array = Array2::from_shape_fn((self.degree+1,1), |(i, _)| &transformation_matrices[i]);
@@ -303,16 +297,6 @@ impl LagrangeBasis {
         // now convert to csr
         let T_csr  = CsrMatrix::from(&Tm);
         T_csr
-    }
-
-    /// This routine gives the compound csr matrix to get vectorized polynomial fourier coeffcients
-    pub fn get_compound_to_legendre_basis_transform(&self, pol_degree : usize) -> CsrMatrix<f64> {
-        use crate::transformations::sparse_matrix_tools::csr_block_from_ndarray;
-        use ndarray::{ Array2};
-        let transformation_matrices : Vec<CsrMatrix<f64>> = (0..=pol_degree).map(|d| self.to_legendre_basis_matrix_for_pol_degree(d)).collect();
-        let mat_array = Array2::from_shape_fn((pol_degree,1), |(i, _)| &transformation_matrices[i]);
-        let T = csr_block_from_ndarray(&mat_array);
-        T
     }
 
 }

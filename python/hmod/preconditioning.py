@@ -1,86 +1,84 @@
 import scipy.sparse
-from fontTools.misc.bezierTools import Identity
 from scipy.sparse.linalg import LinearOperator
 import numpy as np
-#import pypardiso as ppd
-
-class LowestOrderPreconditioner(LinearOperator):
-    """A linear operator that applies a lowest-order preconditioner."""
-    def __init__(self, nt : int, mu : float, T : float, n_terms :int = int(1e5)):
-        from hmod.hmod import EigenBasisTransformLowestOrder
-        import scipy.sparse as sp
-        import hmod.standard_matrices as sm
-        self.nt = nt
-        self.Tmax = T
-        self.n_terms = n_terms
-        self.eigen_basis_transform = EigenBasisTransformLowestOrder(nt, T)
-        generalized_eigenvalues = self.eigen_basis_transform.get_generalized_eigenvalues(n_terms)
-        generalized_eigenvalues = np.array(generalized_eigenvalues)
-        #get diagonal matrix with eigenvalues
-        inverse_diagonal = 1.0/(generalized_eigenvalues+mu)
-        self.inverse_in_spectrum = sp.diags(inverse_diagonal)
-        #get p.w. linear mass matrix
-        self.mass = sm.get_lagrange_lagrange_matrix_for_derivatives(1,1,0,0,nt,T)
-        #get rid of first row and column to account for homogeneous BCs
-        self.mass = self.mass[1:,1:]
-        self.mass_lu = scipy.sparse.linalg.splu(self.mass)
-        self.dtype = np.float64
-        n_dofs = nt
-        shape = (n_dofs, n_dofs)
-        super().__init__(dtype=self.dtype, shape=shape)
-
-    def _matvec(self, x):
-        """Apply the lowest-order preconditioner to the input vector x."""
-        # first apply the inverse mass using pypardiso
-        #f1 = ppd.spsolve(self.mass, x)
-        f1 = self.mass_lu.solve(x)
-        #then inverse transform
-        f2 = self.eigen_basis_transform.inverse_transform(f1)
-        #then apply the inverse in the spectrum
-        v = self.inverse_in_spectrum @ f2
-        #then forward transform
-        u = self.eigen_basis_transform.forward_transform(v)
-        return u
 
 
+class GMRESCounter:
+    """Callable iteration counter for ``scipy.sparse.linalg.gmres``.
 
-class GeneralOrderPreconditioner(LinearOperator):
-    """A linear operator that applies a general-order preconditioner.
-       At the moment, we just apply the lowest order preconditioner to its respective subspace and leave the rest unchanged.
+    The callback argument is stored as the current residual. With SciPy's
+    default GMRES callback behavior this is the preconditioned residual norm.
     """
-    def __init__(self, polynomial_order : int, nt : int, mu : float, T : float, n_terms :int = int(1e5)):
-        import scipy.sparse as sp
-        self.lowest_order_preconditioner = LowestOrderPreconditioner(nt, mu, T, n_terms)
-        self.dtype = np.float64
-        n_dofs = polynomial_order*nt
-        self.lowest_order_dofs = np.arange(1,nt+1)*polynomial_order-1  #excluding first dof for homogeneous BCs
-        shape = (n_dofs, n_dofs)
-        super().__init__(dtype=self.dtype, shape=shape)
 
-    def _matvec(self, x):
-        """Apply the general-order preconditioner to the input vector x."""
-        #extract the lowest order dofs
-        x_lowest = x[self.lowest_order_dofs]
-        #apply the lowest order preconditioner
-        u_lowest = self.lowest_order_preconditioner @ x_lowest
-        #insert back
-        u = np.copy(x)
-        u[self.lowest_order_dofs] = u_lowest
-        return u
+    def __init__(self, print_residual: bool = False):
+        self.print_residual = print_residual
+        self.niter = 0
+        self.residuals = []
 
+    def __call__(self, residual):
+        self.niter += 1
+        self.residuals.append(residual)
+        if self.print_residual:
+            print(f"GMRES iteration {self.niter}: residual = {residual}")
+
+    @property
+    def current_residual(self):
+        """Return the most recently reported residual, if available."""
+        if not self.residuals:
+            return None
+        return self.residuals[-1]
 
 
 class LU_solver(scipy.sparse.linalg.LinearOperator):
+    """LinearOperator wrapper around a sparse LU factorization."""
+
     def __init__(self, A : scipy.sparse.spmatrix):
         self.A_lu = scipy.sparse.linalg.splu(A.tocsc())
         self.dtype = np.float64
         shape = A.shape
         super().__init__(dtype=self.dtype, shape=shape)
     def _matmat(self, X):
+        """Solve the factored sparse system for one or more right-hand sides."""
         return self.A_lu.solve(X)
 
 class BPXPreconditioner(LinearOperator):
-    """A linear operator that applies the BPX preconditioner."""
+    r"""BPX preconditioner for temporal Lagrange spaces.
+
+    This operator approximates the inverse of the temporal norm operator
+
+    ``mu * I + B^s``,
+
+    where ``B^s`` represents a Sobolev-type contribution of order
+    ``sobolev_exponent``. In the hybrid ODE setting one typically uses
+    ``sobolev_exponent=0.5`` to precondition the
+    ``H^{1/2}(I) + mu L2(I)`` norm induced by the formulation.
+
+    The implementation builds a hierarchy of uniformly refined temporal
+    meshes from ``nt_coarse`` to ``nt_coarse * 2**n_refinements``. On each
+    level it forms the Lagrange mass matrix ``M_l``, weights it by
+    ``mu + h_l**(-2*s)``, applies a sparse LU inverse on that level, and
+    prolongates the result to the finest level. The level contributions are
+    summed in the standard BPX fashion.
+
+    The first temporal DOF is removed on every level, which corresponds to a
+    homogeneous initial condition such as ``u(0)=0``. Consequently, the
+    exposed operator acts on the already reduced finest-level vector.
+
+    Parameters
+    ----------
+    mu:
+        Weight of the L2/mass part.
+    n_refinements:
+        Number of uniform refinements from the coarsest to finest mesh.
+    sobolev_exponent:
+        Sobolev order ``s`` used in the BPX level weight ``h_l**(-2*s)``.
+    polynomial_degree:
+        Polynomial degree of the temporal Lagrange space on each interval.
+    nt_coarse:
+        Number of time intervals on the coarsest mesh.
+    T:
+        Final time, i.e. the interval is ``(0, T)``.
+    """
     def __init__(self, mu : float, n_refinements : int, sobolev_exponent : float, polynomial_degree : int, nt_coarse : int, T : float):
         from hmod.standard_matrices import get_lagrange_lagrange_matrix_for_derivatives
         import hmod.polynomial_bases as pb
@@ -109,7 +107,7 @@ class BPXPreconditioner(LinearOperator):
         super().__init__(dtype=self.dtype, shape=shape)
 
     def _matvec(self, x):
-        """Apply the BPX preconditioner to the input vector x."""
+        """Apply the BPX preconditioner to a reduced finest-level vector."""
         x = np.array(x)
         x2 = self.B_inv_op @ x
         return x2

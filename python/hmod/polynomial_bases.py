@@ -1,4 +1,14 @@
 import numpy as np
+import scipy.sparse as sp
+
+
+def _as_1d_coefficients(values: np.ndarray) -> np.ndarray:
+    values = np.asarray(values)
+    if values.ndim == 2 and values.shape[1] == 1:
+        return values[:, 0]
+    return values
+
+
 class LegendreBasis:
     def __init__(self, polynomial_degree : int, nt : int, T : float):
         from hmod.hmod import LegendreBasis
@@ -9,6 +19,7 @@ class LegendreBasis:
 
     def evaluate(self, t, legendre_vals : np.ndarray):
         """Evaluate the Legendre polynomial of given degree at x."""
+        legendre_vals = _as_1d_coefficients(legendre_vals)
         evaluator = np.vectorize(lambda t : self._legendre_basis.evaluate_at(t, legendre_vals))
         return evaluator(t)
 
@@ -32,10 +43,11 @@ class LegendreBasisEvaluator:
         self.nt = nt
         self.T = T
         self._legendre_basis_evaluator = LegendreBasisEvaluator(polynomial_degree, nt, T)
-        self._legendre_basis_evaluator.set_dofs(dofs)
+        self.set_dofs(dofs)
 
     def set_dofs(self, dofs : np.ndarray):
         """Set the DOFs for the evaluator."""
+        dofs = _as_1d_coefficients(dofs)
         self._legendre_basis_evaluator.set_dofs(dofs)
 
     def evaluate(self, t):
@@ -130,10 +142,42 @@ def get_lagrange_prolongation_matrix(nt_coarse : int, nt_fine : int, polynomial_
     return P_csr
 
 
+def get_legendre_derivative_matrix(nt: int, p: int, T: float, square: bool = True):
+    """
+    Global sparse matrix for d/dt on piecewise-Legendre coefficients
+    with degree-major ordering:
+        [u_0(all intervals), u_1(all intervals), ..., u_p(all intervals)]^T
 
-if __name__ == "__main__":
-    mat = _get_refinement_matrices_on_interval(2)
-    tmp = 0
+    Uses the standard Legendre basis P_n on each interval.
+
+    Parameters
+    ----------
+    nt : int
+        Number of equal intervals.
+    p : int
+        Polynomial degree on each interval.
+    T : float
+        Total time interval length.
+    square : bool
+        If False, return the natural rectangular map into degree <= p-1.
+        If True, append one zero block-row to make the matrix square.
+    """
+    nrows_deg = p + 1 if square else p
+    ncols_deg = p + 1
+
+    blocks = [[None for _ in range(ncols_deg)] for _ in range(nrows_deg)]
+
+    h = T / nt
+    scale = 2.0 / h
+    I = sp.eye(nt, format="csr")
+
+    for n in range(ncols_deg):          # input degree
+        blocks[n][n] = 0. * I #to be sure that we have at least one matrix in each row
+        for m in range(min(n, nrows_deg)):   # output degree
+            if (n - m) % 2 == 1:
+                blocks[m][n] = scale * (2*m + 1) * I
+
+    return sp.bmat(blocks, format="csr")
 
 
 
