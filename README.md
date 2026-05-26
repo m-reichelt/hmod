@@ -4,7 +4,7 @@
 
 `hmodFFT` is a Python/Rust package for matrix-free applications of temporal
 operators that involve the modified Hilbert transform. The package focuses on
-uniform partitions of an interval `(0, T)` and on trial and test spaces given by
+uniform partitions of an interval $I = (0, T)$ and on trial and test spaces given by
 piecewise polynomial bases.
 
 The main routines assemble or apply bilinear forms of the type
