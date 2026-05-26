@@ -91,6 +91,15 @@ fn lagrange_to_legendre_basis_transformation(degree : usize, n_t : usize) -> PyR
 }
 
 #[pyfunction]
+fn lagrange_prolongation_matrix(nt_coarse : usize, nt_fine : usize, degree : usize) -> PyResult<(Vec<usize>, Vec<usize>, Vec<f64>)> {
+    let T = 1.0; //does not matter for matrix
+    let lagrange_basis = piecewise_polynomials::LagrangeBasis::new(degree, nt_coarse, T);
+    let prolongation_matrix = lagrange_basis.get_prolongation_matrix_to(nt_fine);
+    let (row_indices, col_indices, values) = csr_to_triplets(&prolongation_matrix);
+    Ok((row_indices, col_indices, values))
+}
+
+#[pyfunction]
 fn get_lagrange_points(degree : usize, n_t : usize, T : f64) -> PyResult<Vec<f64>> {
     let lagrange_basis = piecewise_polynomials::LagrangeBasis::new(degree, n_t, T);
     let points = lagrange_basis.get_lagrange_points().clone();
@@ -109,6 +118,7 @@ fn sum_as_string(a: usize, b: usize) -> PyResult<String> {
 fn hmod(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sum_as_string, m)?)?;
     m.add_function(wrap_pyfunction!(lagrange_to_legendre_basis_transformation, m)?)?;
+    m.add_function(wrap_pyfunction!(lagrange_prolongation_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(get_lagrange_points, m)?)?;
     m.add_class::<LegendreBasis>()?;
     m.add_class::<LegendreBasisEvaluator>()?;

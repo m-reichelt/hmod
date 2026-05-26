@@ -200,6 +200,35 @@ fn equidistant_points_on_interval(degree: usize, interval: (f64, f64)) -> Vec<f6
     (0..=degree).map(|i| a + (b - a) * (i as f64) / (degree as f64)).collect()
 }
 
+fn barycentric_weights(points: &[f64]) -> Vec<f64> {
+    points.iter().enumerate().map(|(j, &xj)| {
+        let product: f64 = points.iter().enumerate()
+            .filter(|&(m, _)| m != j)
+            .map(|(_, &xm)| xj - xm)
+            .product();
+        1.0 / product
+    }).collect()
+}
+
+fn evaluate_lagrange_basis_at(t: f64, interpolation_points: &[f64], weights: &[f64], values: &mut [f64]) {
+    values.fill(0.0);
+    for (j, &xj) in interpolation_points.iter().enumerate() {
+        if (t - xj).abs() < 1e-14 {
+            values[j] = 1.0;
+            return;
+        }
+    }
+
+    let mut denominator = 0.0;
+    for (j, &xj) in interpolation_points.iter().enumerate() {
+        values[j] = weights[j] / (t - xj);
+        denominator += values[j];
+    }
+    for j in 0..interpolation_points.len() {
+        values[j] /= denominator;
+    }
+}
+
 
 impl LagrangeBasis {
     pub fn new(degree: usize, n_intervals: usize, T: f64) -> Self {
@@ -297,6 +326,37 @@ impl LagrangeBasis {
         // now convert to csr
         let T_csr  = CsrMatrix::from(&Tm);
         T_csr
+    }
+
+    pub fn get_prolongation_matrix_to(&self, n_intervals_fine: usize) -> CsrMatrix<f64> {
+        assert!(self.degree > 0, "Lagrange prolongation requires polynomial degree at least 1");
+        assert!(self.n_intervals > 0, "Lagrange prolongation requires at least one coarse interval");
+        assert!(n_intervals_fine > 0, "Lagrange prolongation requires at least one fine interval");
+
+        let n_rows = n_intervals_fine*self.degree + 1;
+        let n_cols = self.n_intervals*self.degree + 1;
+        let interpolation_points = equidistant_points_on_interval(self.degree, (-1.0, 1.0));
+        let weights = barycentric_weights(&interpolation_points);
+        let mut local_values = vec![0.0; self.degree + 1];
+        let mut P = CooMatrix::new(n_rows, n_cols);
+
+        for row in 0..n_rows {
+            let t = (row as f64) / ((n_rows - 1) as f64);
+            let mut coarse_interval = (t*(self.n_intervals as f64)).floor() as usize;
+            if coarse_interval >= self.n_intervals {
+                coarse_interval = self.n_intervals - 1;
+            }
+            let t_ref = 2.0*(t*(self.n_intervals as f64) - (coarse_interval as f64)) - 1.0;
+            evaluate_lagrange_basis_at(t_ref, &interpolation_points, &weights, &mut local_values);
+            let col_start = coarse_interval*self.degree;
+            for (local_col, &value) in local_values.iter().enumerate() {
+                if value != 0.0 {
+                    P.push(row, col_start + local_col, value);
+                }
+            }
+        }
+
+        CsrMatrix::from(&P)
     }
 
 }
@@ -406,6 +466,35 @@ mod tests {
         let lagrange_basis = LagrangeBasis::new(degree, n_intervals, T);
         let points = lagrange_basis.get_lagrange_points();
         assert_eq!(points, &vec![0.0, 0.5, 1.0, 1.5, 2.0]);
+    }
+
+    #[test]
+    fn test_lagrange_prolongation_p1(){
+        let lagrange_basis = LagrangeBasis::new(1, 2, 1.0);
+        let prolongation = lagrange_basis.get_prolongation_matrix_to(4);
+        let rows = prolongation.row_offsets();
+        let cols = prolongation.col_indices();
+        let vals = prolongation.values();
+
+        let expected = vec![
+            vec![(0, 1.0)],
+            vec![(0, 0.5), (1, 0.5)],
+            vec![(1, 1.0)],
+            vec![(1, 0.5), (2, 0.5)],
+            vec![(2, 1.0)],
+        ];
+
+        assert_eq!(prolongation.nrows(), 5);
+        assert_eq!(prolongation.ncols(), 3);
+        for row in 0..prolongation.nrows() {
+            let start = rows[row];
+            let end = rows[row + 1];
+            assert_eq!(end - start, expected[row].len());
+            for (entry, &(expected_col, expected_val)) in expected[row].iter().enumerate() {
+                assert_eq!(cols[start + entry], expected_col);
+                assert!((vals[start + entry] - expected_val).abs() < 1e-14);
+            }
+        }
     }
 
     #[test]

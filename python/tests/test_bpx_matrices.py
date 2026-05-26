@@ -2,9 +2,8 @@ import pytest
 import numpy as np
 import hmod.polynomial_bases as pb
 
-def test_legendre_prolongations():
+def _test_lagrange_prolongations(polynomial_degree: int):
     levels = 3
-    polynomial_degree = 1
     nt_coarse = 3
     T = 1.5
     fun = lambda t : np.cos(t)
@@ -24,7 +23,10 @@ def test_legendre_prolongations():
         diff = np.abs(vals_expected - vals_fine)
         assert np.max(diff) < 1e-10
 
-    a = 1
+
+def test_lagrange_prolongations():
+    for polynomial_degree in [1, 2, 3, 4, 5]:
+        _test_lagrange_prolongations(polynomial_degree)
 
 
 if __name__ == "__main__":

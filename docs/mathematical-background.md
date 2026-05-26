@@ -34,7 +34,7 @@ trial space in the notebook is
 
 ```math
 \|u\|_X^2 =
-\|u\|_{H^{1/2}(I)}^2 + \|u\|_{L^2(I)}^2 .
+\|u\|_{H^{1/2}_{0,}(I)}^2 + \mu \|u\|_{L^2(I)}^2 .
 ```
 
 In the ODE system, the mass contribution is weighted by $\mu>0$. On the discrete

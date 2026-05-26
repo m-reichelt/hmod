@@ -120,26 +120,11 @@ def legendre_refinement_matrix(polynomial_degree : int , nt_coarse : int):
 
 def get_lagrange_prolongation_matrix(nt_coarse : int, nt_fine : int, polynomial_degree : int):
     """Get the prolongation matrix from coarse to fine grid in Lagrange basis."""
-    #todo: this routine has at the moment O(N^2) complexity and could be improved, but like this it is simple and clear
-    T = 1.0 #irrelevant for the matrix itself
-    lagrange_points_coarse = get_langrange_points(polynomial_degree, nt_coarse, T)
-    lagrange_points_fine = get_langrange_points(polynomial_degree, nt_fine, T)
-    trans = get_lagrange_to_legendre_matrix(polynomial_degree, nt_coarse)
-    P = np.zeros((len(lagrange_points_fine), len(lagrange_points_coarse)))
-    for i in range(len(lagrange_points_coarse)):
-        e_vec = np.zeros(len(lagrange_points_coarse))
-        e_vec[i] = 1.0
-        legendre_dofs = trans @ e_vec
-        legendre_evaluator = LegendreBasisEvaluator(legendre_dofs, polynomial_degree, nt_coarse, T)
-        col = legendre_evaluator.evaluate(lagrange_points_fine)
-        P[:,i] = col
-
-    #transform to csr matrix
-    from scipy.sparse import csr_matrix
-    P_csr = csr_matrix(P)
-    #make sure that the zeros are cut out
-    P_csr.eliminate_zeros()
-    return P_csr
+    from hmod.hmod import lagrange_prolongation_matrix
+    from scipy.sparse import coo_matrix
+    row_indices, col_indices, values = lagrange_prolongation_matrix(nt_coarse, nt_fine, polynomial_degree)
+    shape = (nt_fine*polynomial_degree + 1, nt_coarse*polynomial_degree + 1)
+    return coo_matrix((values, (row_indices, col_indices)), shape=shape).tocsr()
 
 
 def get_legendre_derivative_matrix(nt: int, p: int, T: float, square: bool = True):
@@ -178,7 +163,6 @@ def get_legendre_derivative_matrix(nt: int, p: int, T: float, square: bool = Tru
                 blocks[m][n] = scale * (2*m + 1) * I
 
     return sp.bmat(blocks, format="csr")
-
 
 
 
