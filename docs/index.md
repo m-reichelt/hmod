@@ -24,7 +24,9 @@ The central design idea is simple:
 4. [Development notes](development.md) explain source installation and tests.
 
 The notebook [../notebooks/ode_hybrid.ipynb](../notebooks/ode_hybrid.ipynb)
-contains a runnable version of the hybrid ODE example.
+contains the hybrid ODE example in notebook form. GitHub renders it statically;
+to execute the cells, run it locally or open it through the Binder badge in the
+project README.
 
 ## Main Modules
 

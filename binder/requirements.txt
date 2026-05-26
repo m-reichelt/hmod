@@ -1,0 +1,5 @@
+hmodFFT
+numpy
+scipy
+matplotlib
+jupyterlab

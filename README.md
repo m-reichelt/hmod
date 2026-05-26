@@ -1,5 +1,7 @@
 # hmodFFT
 
+[![Open the hybrid ODE notebook in Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/m-reichelt/hmod/main?labpath=notebooks%2Fode_hybrid.ipynb)
+
 `hmodFFT` is a Python/Rust package for matrix-free applications of temporal
 operators that involve the modified Hilbert transform. The package focuses on
 uniform partitions of an interval `(0, T)` and on trial and test spaces given by
@@ -44,6 +46,17 @@ pip install -e ".[tests]"
 
 The package is built with `maturin`, because part of the basis evaluation code
 is implemented in Rust.
+
+## Executable Binder Example
+
+You can run the hybrid ODE notebook directly in the browser with Binder:
+
+[![Open the hybrid ODE notebook in Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/m-reichelt/hmod/main?labpath=notebooks%2Fode_hybrid.ipynb)
+
+Binder starts a temporary JupyterLab environment and installs the released
+`hmodFFT` package from PyPI together with the notebook dependencies. The first
+launch may take a few minutes while Binder builds the environment.
+
 
 ## Quick Example
 
@@ -119,7 +132,9 @@ The GitHub documentation is organized as plain Markdown:
 - [Development notes](docs/development.md)
 
 The notebook [notebooks/ode_hybrid.ipynb](notebooks/ode_hybrid.ipynb) contains
-the same hybrid ODE example in runnable form.
+the same hybrid ODE example. GitHub renders the notebook statically; use the
+Binder badge above or run it locally to execute the cells.
+
 
 ## References
 
