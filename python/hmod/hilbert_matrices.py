@@ -41,7 +41,7 @@ class DCT_IV(LinearOperator):
         return self._matmat(x)  # dct-iv is self-adjoint
 
 
-def get_trial_transform(pol_deg, nt, workers=-1):
+def get_trial_transform(polynomial_degree, nt, workers=-1):
     """Return the FFT-based block transform for trial Legendre modes.
 
     The transform maps degree-major piecewise Legendre coefficients into
@@ -50,9 +50,9 @@ def get_trial_transform(pol_deg, nt, workers=-1):
     degrees use DST-IV blocks, with the signs from the analytic formula.
     """
     from hmod.block_operations import BlockLinearOperator
-    blocks = [[None for _ in range(pol_deg + 1)] for _ in range(pol_deg + 1)]
+    blocks = [[None for _ in range(polynomial_degree + 1)] for _ in range(polynomial_degree + 1)]
 
-    for m in range(pol_deg + 1):
+    for m in range(polynomial_degree + 1):
         if m % 2 == 0:
             fac = np.power(-1, m // 2)
             blocks[m][m] = fac * DCT_IV(nt, workers=workers)
@@ -64,7 +64,7 @@ def get_trial_transform(pol_deg, nt, workers=-1):
     return block_operator
 
 
-def get_test_transform(pol_deg, nt, workers=-1):
+def get_test_transform(polynomial_degree, nt, workers=-1):
     """Return the FFT-based block transform for test Legendre modes.
 
     This is the test-side analogue of :func:`get_trial_transform`. It maps
@@ -73,9 +73,9 @@ def get_test_transform(pol_deg, nt, workers=-1):
     ``<u, H_T v>_I``.
     """
     from hmod.block_operations import BlockLinearOperator
-    blocks = [[None for _ in range(pol_deg + 1)] for _ in range(pol_deg + 1)]
+    blocks = [[None for _ in range(polynomial_degree + 1)] for _ in range(polynomial_degree + 1)]
 
-    for m in range(pol_deg + 1):
+    for m in range(polynomial_degree + 1):
         if m % 2 == 0:
             fac = np.power(-1, m // 2)
             blocks[m][m] = fac * DST_IV(nt, workers=workers)
@@ -97,17 +97,17 @@ def a_k_12_fun(k: int, m: int):
         return numerator / denominator
 
 
-def first_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_test: int):
+def first_branch_sum(diagonal_index: int, nt: int, polynomial_degree_trial: int, polynomial_degree_test: int):
     """Compute the first zeta-series branch for one kernel diagonal entry.
 
     The returned scalar contributes to the diagonal kernel block coupling
-    trial Legendre degree ``pol_deg_trial`` with test Legendre degree
-    ``pol_deg_test`` for the bilinear form ``<u, H_T v>_I``.
+    trial Legendre degree ``polynomial_degree_trial`` with test Legendre degree
+    ``polynomial_degree_test`` for the bilinear form ``<u, H_T v>_I``.
     """
     from scipy.special import spherical_jn as jn
     # use shorthand notation for the indices as in paper
-    r = pol_deg_test
-    m = pol_deg_trial
+    r = polynomial_degree_test
+    m = polynomial_degree_trial
     a = diagonal_index
     # define lambdas
     a_m_i = lambda m, i: (-1) ** i * a_k_12_fun(2 * i, m)
@@ -145,7 +145,7 @@ def first_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_t
     return sum_val / nt ** 2
 
 
-def second_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_test: int):
+def second_branch_sum(diagonal_index: int, nt: int, polynomial_degree_trial: int, polynomial_degree_test: int):
     """Compute the second zeta-series branch for one kernel diagonal entry.
 
     Together with :func:`first_branch_sum`, this gives the diagonal kernel
@@ -153,8 +153,8 @@ def second_branch_sum(diagonal_index: int, nt: int, pol_deg_trial: int, pol_deg_
     ``<u, H_T v>_I``.
     """
     # use shorthand notation for the indices as in paper
-    r = pol_deg_test
-    m = pol_deg_trial
+    r = polynomial_degree_test
+    m = polynomial_degree_trial
     a = diagonal_index
     # define lambdas
     a_m_i = lambda m, i: (-1) ** i * a_k_12_fun(2 * i, m)
@@ -199,10 +199,10 @@ def _b_m_i(m: int, i: int):
     return (-1) ** i * a_k_12_fun(2 * i + 1, m)
 
 
-def _kernel_diagonal_entries_zeta(nt: int, pol_deg_trial: int, pol_deg_test: int):
+def _kernel_diagonal_entries_zeta(nt: int, polynomial_degree_trial: int, polynomial_degree_test: int):
     """Vectorized diagonal entries for one transformed Hilbert kernel block."""
-    r = pol_deg_test
-    m = pol_deg_trial
+    r = polynomial_degree_test
+    m = polynomial_degree_trial
 
     diagonal_indices = np.arange(nt, dtype=np.float64)
     beta = np.pi * (2 * diagonal_indices + 1) / (4 * nt)
@@ -311,13 +311,13 @@ def _kernel_diagonal_entries_zeta(nt: int, pol_deg_trial: int, pol_deg_test: int
             )
 
     second_branch_sign = -1.0
-    if pol_deg_trial % 2 != pol_deg_test % 2:
+    if polynomial_degree_trial % 2 != polynomial_degree_test % 2:
         second_branch_sign = 1.0
 
     return (first + second_branch_sign * second) / nt ** 2
 
 
-def get_kernel_matrix_for_degrees_zeta(nt: int, pol_deg_trial: int, pol_deg_test: int):
+def get_kernel_matrix_for_degrees_zeta(nt: int, polynomial_degree_trial: int, polynomial_degree_test: int):
     """Return one diagonal kernel block for fixed Legendre degrees.
 
     The block has shape ``(nt, nt)`` and couples all time intervals for one
@@ -325,24 +325,29 @@ def get_kernel_matrix_for_degrees_zeta(nt: int, pol_deg_trial: int, pol_deg_test
     sine/cosine basis; the entries are evaluated with the zeta-series
     formula used for the modified Hilbert transform.
     """
-    entries = _kernel_diagonal_entries_zeta(nt, pol_deg_trial, pol_deg_test)
+    entries = _kernel_diagonal_entries_zeta(nt, polynomial_degree_trial, polynomial_degree_test)
     return sparse.diags(entries, format='csr')
 
 
-def get_kernel_matrix(nt: int, pol_deg_trial: int, pol_deg_test: int):
+def get_kernel_matrix(nt: int, polynomial_degree_trial: int, polynomial_degree_test: int):
     """Return the full transformed kernel for all Legendre degree pairs.
 
     The result is a block matrix collecting
     :func:`get_kernel_matrix_for_degrees_zeta` for trial degrees
-    ``0..pol_deg_trial`` and test degrees ``0..pol_deg_test``.
+    ``0..polynomial_degree_trial`` and test degrees ``0..polynomial_degree_test``.
     """
-    blocks = [[get_kernel_matrix_for_degrees_zeta(nt, n, m) for n in range(pol_deg_trial + 1)]
+    blocks = [[get_kernel_matrix_for_degrees_zeta(nt, n, m) for n in range(polynomial_degree_trial + 1)]
               for m in
-              range(pol_deg_test + 1)]
+              range(polynomial_degree_test + 1)]
     return sparse.bmat(blocks, format='csr')
 
 
-def get_operator_I_H_legendre_legendre(nt: int, pol_deg_trial: int, pol_deg_test: int, final_time: float):
+def get_operator_I_H_legendre_legendre(
+    polynomial_degree_trial: int,
+    polynomial_degree_test: int,
+    nt: int,
+    T: float,
+):
     r"""Return the Legendre-Legendre operator for ``<u, H_T v>_I``.
 
     Rows correspond to test functions and columns to trial functions. For
@@ -354,15 +359,22 @@ def get_operator_I_H_legendre_legendre(nt: int, pol_deg_trial: int, pol_deg_test
     The returned object is matrix-free and uses FFT-based transforms around
     the zeta-series kernel.
     """
-    U = get_trial_transform(pol_deg_trial, nt)
-    T = get_test_transform(pol_deg_test, nt)
-    K = sparse.linalg.aslinearoperator(get_kernel_matrix(nt, pol_deg_trial, pol_deg_test))
-    return (final_time * 0.5) * T.H @ K @ U
+    trial_transform = get_trial_transform(polynomial_degree_trial, nt)
+    test_transform = get_test_transform(polynomial_degree_test, nt)
+    K = sparse.linalg.aslinearoperator(
+        get_kernel_matrix(nt, polynomial_degree_trial, polynomial_degree_test)
+    )
+    return (T * 0.5) * test_transform.H @ K @ trial_transform
 
 
-def get_hilbert_matrix_for_derivatives_legendre_legendre(nt: int, pol_deg_trial: int, pol_deg_test: int,
-                                                         derivatives_trial: int, derivatives_test: int,
-                                                         final_time: float):
+def get_hilbert_matrix_for_derivatives_legendre_legendre(
+    polynomial_degree_trial: int,
+    polynomial_degree_test: int,
+    derivatives_trial: int,
+    derivatives_test: int,
+    nt: int,
+    T: float,
+):
     r"""Return a Hilbert matrix in Legendre trial/test bases.
 
     Rows correspond to test basis functions and columns to trial basis
@@ -372,18 +384,19 @@ def get_hilbert_matrix_for_derivatives_legendre_legendre(nt: int, pol_deg_trial:
     ``A[r, m] = <partial_t^i phi_m, H_T partial_t^j psi_r>_I``.
 
     Here ``phi_m`` is a trial basis function, ``psi_r`` is a test basis
-    function, and ``H_T`` is the modified Hilbert transform on
-    ``I = (0, final_time)``.
+    function, and ``H_T`` is the modified Hilbert transform on ``I = (0, T)``.
     """
-    Mh = get_operator_I_H_legendre_legendre(nt, pol_deg_trial, pol_deg_test, final_time)
+    Mh = get_operator_I_H_legendre_legendre(
+        polynomial_degree_trial, polynomial_degree_test, nt, T
+    )
     Mat = Mh
     if derivatives_trial > 0:
-        D_trial = pb.get_legendre_derivative_matrix(nt, pol_deg_trial, final_time)
+        D_trial = pb.get_legendre_derivative_matrix(nt, polynomial_degree_trial, T)
         D_pow = sparse.linalg.matrix_power(D_trial, derivatives_trial)
         D_op = sparse.linalg.aslinearoperator(D_pow)
         Mat = Mat @ D_op
     if derivatives_test > 0:
-        D_test = pb.get_legendre_derivative_matrix(nt, pol_deg_test, final_time)
+        D_test = pb.get_legendre_derivative_matrix(nt, polynomial_degree_test, T)
         D_pow = sparse.linalg.matrix_power(D_test, derivatives_test)
         D_op = sparse.linalg.aslinearoperator(D_pow)
         Mat = D_op.H @ Mat
@@ -391,9 +404,14 @@ def get_hilbert_matrix_for_derivatives_legendre_legendre(nt: int, pol_deg_trial:
     return Mat
 
 
-def get_hilbert_matrix_for_derivatives_legendre_lagrange(nt: int, pol_deg_trial: int, pol_deg_test: int,
-                                                         derivatives_trial: int, derivatives_test: int,
-                                                         final_time: float):
+def get_hilbert_matrix_for_derivatives_legendre_lagrange(
+    polynomial_degree_trial: int,
+    polynomial_degree_test: int,
+    derivatives_trial: int,
+    derivatives_test: int,
+    nt: int,
+    T: float,
+):
     r"""Return a Hilbert matrix with Legendre trial and Lagrange test basis.
 
     With ``i = derivatives_trial`` and ``j = derivatives_test``, the matrix
@@ -405,16 +423,28 @@ def get_hilbert_matrix_for_derivatives_legendre_lagrange(nt: int, pol_deg_trial:
     Lagrange test basis function.
     """
     K = get_hilbert_matrix_for_derivatives_legendre_legendre(
-        nt, pol_deg_trial, pol_deg_test, derivatives_trial, derivatives_test, final_time
+        polynomial_degree_trial,
+        polynomial_degree_test,
+        derivatives_trial,
+        derivatives_test,
+        nt,
+        T,
     )
-    trans = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_test, nt))
+    trans = sparse.linalg.aslinearoperator(
+        sm.get_lagrange_to_legendre_matrix(polynomial_degree_test, nt)
+    )
 
     return trans.T @ K
 
 
-def get_hilbert_matrix_for_derivatives_lagrange_legendre(nt: int, pol_deg_trial: int, pol_deg_test: int,
-                                                         derivatives_trial: int, derivatives_test: int,
-                                                         final_time: float):
+def get_hilbert_matrix_for_derivatives_lagrange_legendre(
+    polynomial_degree_trial: int,
+    polynomial_degree_test: int,
+    derivatives_trial: int,
+    derivatives_test: int,
+    nt: int,
+    T: float,
+):
     r"""Return a Hilbert matrix with Lagrange trial and Legendre test basis.
 
     With ``i = derivatives_trial`` and ``j = derivatives_test``, the matrix
@@ -426,16 +456,28 @@ def get_hilbert_matrix_for_derivatives_lagrange_legendre(nt: int, pol_deg_trial:
     Legendre test basis function.
     """
     K = get_hilbert_matrix_for_derivatives_legendre_legendre(
-        nt, pol_deg_trial, pol_deg_test, derivatives_trial, derivatives_test, final_time
+        polynomial_degree_trial,
+        polynomial_degree_test,
+        derivatives_trial,
+        derivatives_test,
+        nt,
+        T,
     )
-    trans = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_trial, nt))
+    trans = sparse.linalg.aslinearoperator(
+        sm.get_lagrange_to_legendre_matrix(polynomial_degree_trial, nt)
+    )
 
     return K @ trans
 
 
-def get_hilbert_matrix_for_derivatives_lagrange_lagrange(nt: int, pol_deg_trial: int, pol_deg_test: int,
-                                                         derivatives_trial: int, derivatives_test: int,
-                                                         final_time: float):
+def get_hilbert_matrix_for_derivatives_lagrange_lagrange(
+    polynomial_degree_trial: int,
+    polynomial_degree_test: int,
+    derivatives_trial: int,
+    derivatives_test: int,
+    nt: int,
+    T: float,
+):
     r"""Return a Hilbert matrix with Lagrange trial/test bases.
 
     With ``i = derivatives_trial`` and ``j = derivatives_test``, the matrix
@@ -448,15 +490,24 @@ def get_hilbert_matrix_for_derivatives_lagrange_lagrange(nt: int, pol_deg_trial:
     in the hybrid ODE bilinear form.
     """
     K = get_hilbert_matrix_for_derivatives_legendre_legendre(
-        nt, pol_deg_trial, pol_deg_test, derivatives_trial, derivatives_test, final_time
+        polynomial_degree_trial,
+        polynomial_degree_test,
+        derivatives_trial,
+        derivatives_test,
+        nt,
+        T,
     )
-    trans = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_trial, nt))
-    transT = sparse.linalg.aslinearoperator(sm.get_lagrange_to_legendre_matrix(pol_deg_test, nt))
+    trans = sparse.linalg.aslinearoperator(
+        sm.get_lagrange_to_legendre_matrix(polynomial_degree_trial, nt)
+    )
+    transT = sparse.linalg.aslinearoperator(
+        sm.get_lagrange_to_legendre_matrix(polynomial_degree_test, nt)
+    )
 
     return transT.T @ K @ trans
 
 
-# Backwards-compatible aliases for the previous public names.
+# Backwards-compatible aliases for the previous function names.
 get_hilbert_matrix_with_derivatives_legendre_legendre = get_hilbert_matrix_for_derivatives_legendre_legendre
 get_hilbert_matrix_with_derivatives_legendre_lagrange = get_hilbert_matrix_for_derivatives_legendre_lagrange
 get_hilbert_matrix_with_derivatives_lagrange_legendre = get_hilbert_matrix_for_derivatives_lagrange_legendre

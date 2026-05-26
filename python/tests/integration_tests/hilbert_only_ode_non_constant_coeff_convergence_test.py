@@ -62,7 +62,9 @@ def solve_ode_only_hilbert_non_constant_coeff_directly(nt : int, polynomial_degr
     f_vec = sm.project_rhs_onto_legendre_basis(f_analytical, nt, polynomial_degree_rhs, T)
     #get the hilbert matrices
     A = ResidualEvaluator(nt, polynomial_degree)
-    F = hm.get_hilbert_matrix_for_derivatives_legendre_lagrange(nt, polynomial_degree_rhs, polynomial_degree, 0, 0, T)
+    F = hm.get_hilbert_matrix_for_derivatives_legendre_lagrange(
+        polynomial_degree_rhs, polynomial_degree, 0, 0, nt, T
+    )
     rhs_vec = np.array(F @ f_vec)
     #transfer the system to a dense matrix for direct solving
     Kd = mat_tools.linear_operator_to_matrix(A)

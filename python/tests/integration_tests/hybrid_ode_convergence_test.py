@@ -51,9 +51,15 @@ def solve_ode_hybrid_directly(nt : int, polynomial_degree : int, number_of_modes
     #project to piecewise polynomial space
     f_vec = sm.project_rhs_onto_legendre_basis(f_analytical, nt, polynomial_degree_rhs, T)
     #get the hilbert matrices
-    Ah = hm.get_hilbert_matrix_for_derivatives_lagrange_lagrange(nt, polynomial_degree, polynomial_degree, 1, 0, T)
-    Mh = hm.get_hilbert_matrix_for_derivatives_lagrange_lagrange(nt, polynomial_degree_rhs, polynomial_degree, 0, 0, T)
-    Fh = hm.get_hilbert_matrix_for_derivatives_legendre_lagrange(nt, polynomial_degree_rhs, polynomial_degree, 0, 0, T)
+    Ah = hm.get_hilbert_matrix_for_derivatives_lagrange_lagrange(
+        polynomial_degree, polynomial_degree, 1, 0, nt, T
+    )
+    Mh = hm.get_hilbert_matrix_for_derivatives_lagrange_lagrange(
+        polynomial_degree_rhs, polynomial_degree, 0, 0, nt, T
+    )
+    Fh = hm.get_hilbert_matrix_for_derivatives_legendre_lagrange(
+        polynomial_degree_rhs, polynomial_degree, 0, 0, nt, T
+    )
     #get the standard matrices
     Ab = sm.get_lagrange_lagrange_matrix_for_derivatives(polynomial_degree_trial=polynomial_degree, polynomial_degree_test=polynomial_degree,
                                                         derivatives_trial=1, derivatives_test=0, nt=nt, T=T)

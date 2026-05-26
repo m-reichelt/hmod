@@ -26,7 +26,9 @@ class WeightedResidual:
         if residual_type == ResidualType.Standard:
             self.Mass = sm.get_legendre_lagrange_matrix_for_derivatives(polynomial_degree_projection, polynomial_degree_test, 0, 0, nt, T)
         elif residual_type == ResidualType.Hilbert:
-            self.Mass = hm.get_hilbert_matrix_for_derivatives_legendre_lagrange(nt, polynomial_degree_projection, polynomial_degree_test, 0, 0, T)
+            self.Mass = hm.get_hilbert_matrix_for_derivatives_legendre_lagrange(
+                polynomial_degree_projection, polynomial_degree_test, 0, 0, nt, T
+            )
     def project_fun(self, residual_fun):
         res_vec_rhs = sm.rhs_quadrature(residual_fun, self.nt, self.polynomial_degree_projection, self.T)
         res_vec = self.M_L_LU.solve(res_vec_rhs)

@@ -13,8 +13,9 @@ def _test_bpx_only_time_derivative_for_settings(polynomial_degree: int, n_coarse
     nmodes = int(1e5)
     n_finest = n_coarsest * (2 ** n_refinements)
     bpx = BPXPreconditioner(mu, n_refinements, 0.5, polynomial_degree, n_coarsest, T)
-    At = hm.get_hilbert_matrix_for_derivatives_lagrange_lagrange(n_finest, polynomial_degree, polynomial_degree, 1, 0,
-                                                                  T)
+    At = hm.get_hilbert_matrix_for_derivatives_lagrange_lagrange(
+        polynomial_degree, polynomial_degree, 1, 0, n_finest, T
+    )
 
     # bpx_0 = DofRestrictorSymmetric(bpx, np.array([0]), np.array([0.]))
     bpx_0 = bpx  # already includes BC
@@ -48,8 +49,12 @@ def _test_bpx_hybrid_for_settings(mu: float, polynomial_degree: int, n_coarsest:
     T = 1.0
     nmodes = int(1e5)
     n_finest = n_coarsest * (2 ** n_refinements)
-    AtH = hm.get_hilbert_matrix_for_derivatives_lagrange_lagrange(n_finest, polynomial_degree, polynomial_degree, 1, 0, T)
-    MtH = hm.get_hilbert_matrix_for_derivatives_lagrange_lagrange(n_finest, polynomial_degree, polynomial_degree, 0, 0, T)
+    AtH = hm.get_hilbert_matrix_for_derivatives_lagrange_lagrange(
+        polynomial_degree, polynomial_degree, 1, 0, n_finest, T
+    )
+    MtH = hm.get_hilbert_matrix_for_derivatives_lagrange_lagrange(
+        polynomial_degree, polynomial_degree, 0, 0, n_finest, T
+    )
     KH = AtH + mu * MtH
     AtS = sm.get_lagrange_lagrange_matrix_for_derivatives(polynomial_degree, polynomial_degree, 1, 0, n_finest, T)
     MtS = sm.get_lagrange_lagrange_matrix_for_derivatives(polynomial_degree, polynomial_degree, 0, 0, n_finest, T)
