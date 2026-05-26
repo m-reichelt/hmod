@@ -137,6 +137,23 @@ the same hybrid ODE example. GitHub renders the notebook statically; use the
 Binder badge above or run it locally to execute the cells.
 
 
+## How to Cite
+
+A software paper for `hmodFFT` is currently under construction. For now, please
+cite the dissertation:
+
+```bibtex
+@phdthesis{Reichelt2026EllipticSpaceTime,
+  author  = {Reichelt, Michael},
+  title   = {Elliptic Space-Time Methods for Parabolic PDEs with Applications},
+  school  = {Graz University of Technology},
+  year    = {2026},
+  month   = jan,
+  doi     = {10.3217/p02r1-7rs49},
+  url     = {https://repository.tugraz.at/theses/93032}
+}
+```
+
 ## References
 
 For the analytical background and the modified Hilbert transform, see
