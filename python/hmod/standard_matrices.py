@@ -198,8 +198,7 @@ def rhs_quadrature(f, nt : int, polynomial_degree_test : int, T : float, quad_or
     where ``psi_r`` are piecewise Legendre test basis functions of degree at
     most ``polynomial_degree_test``. The result uses degree-major ordering.
     """
-    from numpy.polynomial.legendre import leggauss
-    from scipy.special import legendre
+    from numpy.polynomial.legendre import leggauss, legvander
     #get quadrature points and weights on [-1,1]
     if quad_order is not None:
         nqp = quad_order
@@ -207,19 +206,18 @@ def rhs_quadrature(f, nt : int, polynomial_degree_test : int, T : float, quad_or
         nqp = max(2, polynomial_degree_test+1)
     qp, qw = leggauss(nqp)
     h = T/nt
-    rhs_mat = np.zeros((nt, polynomial_degree_test+1))
-    for ie in range(nt):
-        #map quadrature points to [t_ie, t_ie+1]
-        t_left = ie*h
-        t_right = (ie+1)*h
-        t_qp = 0.5*( (t_right - t_left)*qp + (t_right + t_left) )
-        f_qp = f(t_qp)
-        for j in range(polynomial_degree_test+1):
-            #evaluate the j-th legendre polynomial at the quadrature points
-            Pj = legendre(j)
-            Pj_qp = Pj( qp )  #evaluate at quadrature points on [-1,1]
-            integral = np.sum( qw * f_qp * Pj_qp ) * (h/2.0)
-            rhs_mat[ie, j] = integral
+    #map quadrature points to all intervals at once
+    t_qp = h * (np.arange(nt)[:, None] + 0.5*(qp[None, :] + 1.0))
+    f_qp = np.asarray(f(t_qp.ravel()))
+    if f_qp.shape == ():
+        f_qp = np.full(t_qp.shape, f_qp)
+    else:
+        f_qp = np.squeeze(f_qp)
+        if f_qp.shape != t_qp.shape:
+            f_qp = np.broadcast_to(f_qp, (t_qp.size,)).reshape(t_qp.shape)
+
+    legendre_values = legvander(qp, polynomial_degree_test)
+    rhs_mat = ((f_qp * qw) @ legendre_values) * (h/2.0)
 
     rhs = rhs_mat.transpose().flatten()
     return rhs

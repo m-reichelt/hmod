@@ -185,6 +185,56 @@ For a homogeneous Lagrange initial condition, remove the first test functional:
 rhs0 = rhs[1:]
 ```
 
+## Weighted Residuals
+
+Nonlinear and coefficient-dependent terms often start from a pointwise
+residual function $g(t)$ that is only available through evaluation. The helper
+`hmod.non_linear_operators.WeightedResidual` projects such a residual into a
+Legendre space by quadrature and then returns the tested residual vector.
+
+There are two residual types:
+
+| Residual type | Returned entries |
+| --- | --- |
+| `ResidualType.Standard` | `\langle g, v_h \rangle_I` |
+| `ResidualType.Hilbert` | `\langle g, \mathcal{H}_T v_h \rangle_I` |
+
+The routine is useful when assembling a nonlinear matrix-free action. The
+residual function should accept NumPy arrays of points and return values with
+the same shape. The below code corresponds to the bilinear form $\langle c(t) \partial_t u, (\mathcal{H}_T + I)v \rangle_I$:
+
+```python
+import hmod.non_linear_operators as nops
+
+weighted_standard = nops.WeightedResidual(
+    residual_type=nops.ResidualType.Standard,
+    polynomial_degree_test=p,
+    polynomial_degree_projection=p + 2,
+    nt=nt,
+    T=T,
+)
+
+weighted_hilbert = nops.WeightedResidual(
+    residual_type=nops.ResidualType.Hilbert,
+    polynomial_degree_test=p,
+    polynomial_degree_projection=p + 2,
+    nt=nt,
+    T=T,
+)
+
+residual_fun = lambda t: coefficient(t) * evaluator.evaluate_derivative(t)
+
+standard_residual = weighted_standard.apply(residual_fun)
+hilbert_residual = weighted_hilbert.apply(residual_fun)
+hybrid_residual = standard_residual + hilbert_residual
+```
+
+Here `polynomial_degree_projection` controls the intermediate discontinuous
+Legendre projection used for the pointwise residual. In polynomial coefficient
+examples, choose it large enough to represent the product exactly; for general
+nonlinear functions, increase the projection degree according to the desired
+accuracy.
+
 ## Basis Transforms And Evaluation
 
 Use `hmod.polynomial_bases.get_lagrange_to_legendre_matrix` to transform a

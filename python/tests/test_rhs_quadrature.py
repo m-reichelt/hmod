@@ -38,6 +38,24 @@ def test_quadrature_for_polynomials():
         #assert diff < 1e-12, f"Quadrature failed for polynomial degree {degree} with difference {diff}"
 
 
+def test_quadrature_uses_vectorized_rhs_call():
+    from hmod.standard_matrices import rhs_quadrature
+    T = 2.0
+    nt = 4
+    degree = 3
+    quad_order = degree + 2
+    calls = []
+
+    def f(points):
+        calls.append(np.shape(points))
+        return np.ones_like(points)
+
+    rhs_quad_vec = rhs_quadrature(f, nt, degree, T, quad_order=quad_order)
+    exact_quad_mat = np.zeros((degree+1, nt))
+    exact_quad_mat[0, :] = T/nt
+
+    assert calls == [(nt*quad_order,)]
+    np.testing.assert_allclose(rhs_quad_vec, exact_quad_mat.flatten(), atol=1e-14)
 
 
 if __name__ == "__main__":

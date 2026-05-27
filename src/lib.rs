@@ -5,6 +5,7 @@ mod piecewise_polynomials;
 mod sparse_matrix_tools;
 
 use nalgebra::{DMatrix, DMatrixView};
+use pyo3::buffer::PyBuffer;
 use pyo3::prelude::*;
 use crate::sparse_matrix_tools::csr_to_triplets;
 
@@ -48,7 +49,7 @@ struct LegendreBasisEvaluator{
     legendre_basis : piecewise_polynomials::LegendreBasis,
     n_t : usize,
     degree : usize,
-    legendre_vals_vec : Vec<f64>,
+    legendre_vals : DMatrix<f64>,
 }
 
 #[pymethods]
@@ -56,28 +57,36 @@ impl LegendreBasisEvaluator {
     #[new]
     fn new(degree : usize, n_t : usize, T : f64) -> Self {
         let legendre_basis = piecewise_polynomials::LegendreBasis::new(degree, n_t, T);
-        let legendre_vals_vec = vec![0.0; n_t*(degree+1)];
-        Self {legendre_basis, n_t, degree, legendre_vals_vec}
+        let legendre_vals = DMatrix::zeros(n_t, degree+1);
+        Self {legendre_basis, n_t, degree, legendre_vals}
     }
 
     fn set_dofs(&mut self, legendre_vals : Vec<f64>) -> PyResult<()> {
         assert_eq!(legendre_vals.len(), self.n_t*(self.degree+1), "LegendreBasisEvaluator: set_dofs: input vector has wrong length");
-        self.legendre_vals_vec = legendre_vals;
+        self.legendre_vals = DMatrixView::from_slice(&legendre_vals, self.n_t, self.degree+1).try_into().unwrap();
         Ok(())
     }
 
     fn evaluate_at(&self, t: f64) -> PyResult<f64> {
-        //reshape the vector
-        let legendre_vals : DMatrix<f64> = DMatrixView::from_slice(&self.legendre_vals_vec, self.n_t, self.degree+1).try_into().unwrap();
-        let val = self.legendre_basis.evaluate(t, &legendre_vals);
+        let val = self.legendre_basis.evaluate(t, &self.legendre_vals);
         Ok(val)
     }
 
     fn evaluate_derivative_at(&self, t: f64) -> PyResult<f64> {
-        //reshape the vector
-        let legendre_vals : DMatrix<f64> = DMatrixView::from_slice(&self.legendre_vals_vec, self.n_t, self.degree+1).try_into().unwrap();
-        let val = self.legendre_basis.evaluate_derivative(t, &legendre_vals);
+        let val = self.legendre_basis.evaluate_derivative(t, &self.legendre_vals);
         Ok(val)
+    }
+
+    fn evaluate_many(&self, py: Python<'_>, t_values: PyBuffer<f64>) -> PyResult<Vec<f64>> {
+        let t_values = t_values.to_vec(py)?;
+        let values = py.detach(|| self.legendre_basis.evaluate_many(&t_values, &self.legendre_vals));
+        Ok(values)
+    }
+
+    fn evaluate_derivative_many(&self, py: Python<'_>, t_values: PyBuffer<f64>) -> PyResult<Vec<f64>> {
+        let t_values = t_values.to_vec(py)?;
+        let values = py.detach(|| self.legendre_basis.evaluate_derivative_many(&t_values, &self.legendre_vals));
+        Ok(values)
     }
 }
 

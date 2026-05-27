@@ -3,6 +3,9 @@
 use scirs2_special::legendre;
 use nalgebra::{DMatrix, DVector, Dyn, U1};
 use nalgebra_sparse::{coo::CooMatrix, csr::CsrMatrix};
+use rayon::prelude::*;
+
+const PARALLEL_EVALUATION_THRESHOLD: usize = 2048;
 
 pub(crate) struct LegendreBasis{
     degree: usize,
@@ -116,6 +119,22 @@ impl LegendreBasis {
     pub fn evaluate_derivative(&self, t: f64, dof_vals : &DMatrix<f64>) -> f64 {
         let interval_index = find_interval(t, self.T, self.n_intervals);
         self.evaluate_derivative_for_interval(t, interval_index, dof_vals)
+    }
+
+    pub fn evaluate_many(&self, t_values: &[f64], dof_vals : &DMatrix<f64>) -> Vec<f64> {
+        if t_values.len() >= PARALLEL_EVALUATION_THRESHOLD {
+            t_values.par_iter().map(|&t| self.evaluate(t, dof_vals)).collect()
+        } else {
+            t_values.iter().map(|&t| self.evaluate(t, dof_vals)).collect()
+        }
+    }
+
+    pub fn evaluate_derivative_many(&self, t_values: &[f64], dof_vals : &DMatrix<f64>) -> Vec<f64> {
+        if t_values.len() >= PARALLEL_EVALUATION_THRESHOLD {
+            t_values.par_iter().map(|&t| self.evaluate_derivative(t, dof_vals)).collect()
+        } else {
+            t_values.iter().map(|&t| self.evaluate_derivative(t, dof_vals)).collect()
+        }
     }
 }
 

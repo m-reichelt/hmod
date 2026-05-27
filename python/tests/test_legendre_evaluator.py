@@ -61,5 +61,31 @@ def test_evaluator_accepts_single_column_dofs():
     )
 
 
+def test_evaluator_preserves_input_shape():
+    nt = 4
+    T = 2.0
+    polynomial_degree = 2
+    dofs = np.arange(nt * (polynomial_degree + 1), dtype=float)
+    evaluator = pb.LegendreBasisEvaluator(dofs, polynomial_degree, nt, T)
+
+    t_check = np.linspace(1e-4, T - 1e-4, 12).reshape(3, 4)
+    values = evaluator.evaluate(t_check)
+    derivatives = evaluator.evaluate_derivative(t_check)
+
+    expected_values = np.array([
+        evaluator._legendre_basis_evaluator.evaluate_at(float(t))
+        for t in t_check.ravel()
+    ]).reshape(t_check.shape)
+    expected_derivatives = np.array([
+        evaluator._legendre_basis_evaluator.evaluate_derivative_at(float(t))
+        for t in t_check.ravel()
+    ]).reshape(t_check.shape)
+
+    assert values.shape == t_check.shape
+    assert derivatives.shape == t_check.shape
+    np.testing.assert_allclose(values, expected_values)
+    np.testing.assert_allclose(derivatives, expected_derivatives)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

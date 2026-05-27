@@ -1,7 +1,5 @@
 # hmodFFT
 
-[![Open the hybrid ODE notebook in Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/m-reichelt/hmod/main?labpath=notebooks%2Fode_hybrid.ipynb)
-
 `hmodFFT` is a Python/Rust package for matrix-free applications of temporal
 operators that involve the modified Hilbert transform. The package focuses on
 uniform partitions of an interval $I = (0, T)$ and on trial and test spaces given by
@@ -23,6 +21,17 @@ where $\mathcal{H}_T$ denotes the modified Hilbert transform on
 $I = (0, T)$. Standard matrices are assembled as sparse SciPy matrices.
 Hilbert-transform matrices are represented as SciPy `LinearOperator`s and use
 FFT-based transforms for efficient application.
+
+## Executable Notebooks
+
+| Notebook | Topic | Run in Binder |
+| --- | --- | --- |
+| [notebooks/ode_hybrid.ipynb](notebooks/ode_hybrid.ipynb) | Linear hybrid ODE solve with BPX-preconditioned GMRES. | [![Open in Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/m-reichelt/hmod/main?labpath=notebooks%2Fode_hybrid.ipynb) |
+| [notebooks/ode_nonliner_hybrid.ipynb](notebooks/ode_nonliner_hybrid.ipynb) | Nonlinear hybrid ODE solve using weighted residual operators. | [![Open in Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/m-reichelt/hmod/main?labpath=notebooks%2Fode_nonliner_hybrid.ipynb) |
+
+Binder starts a temporary JupyterLab environment and installs the released
+`hmodFFT` package from PyPI together with the notebook dependencies. The first
+launch may take a few minutes while Binder builds the environment.
 
 ## Installation
 
@@ -47,17 +56,6 @@ maturin develop -r
 This will install the package inside the current Python environment.
 The package is built with [maturin](https://www.maturin.rs/), because part of the basis evaluation code
 is implemented in Rust. Note, that the Rust toolchain must be installed to build the package from source.
-
-## Executable Binder Example
-
-You can run the hybrid ODE notebook directly in the browser with Binder:
-
-[![Open the hybrid ODE notebook in Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/m-reichelt/hmod/main?labpath=notebooks%2Fode_hybrid.ipynb)
-
-Binder starts a temporary JupyterLab environment and installs the released
-`hmodFFT` package from PyPI together with the notebook dependencies. The first
-launch may take a few minutes while Binder builds the environment.
-
 
 ## Quick Example
 
@@ -133,8 +131,11 @@ The GitHub documentation is organized as plain Markdown:
 - [Development notes](docs/development.md)
 
 The notebook [notebooks/ode_hybrid.ipynb](notebooks/ode_hybrid.ipynb) contains
-the same hybrid ODE example. GitHub renders the notebook statically; use the
-Binder badge above or run it locally to execute the cells.
+the same hybrid ODE example. The notebook
+[notebooks/ode_nonliner_hybrid.ipynb](notebooks/ode_nonliner_hybrid.ipynb)
+contains a nonlinear variant using the weighted residual operators. GitHub
+renders notebooks statically; use the Binder links above or run them locally to
+execute the cells.
 
 
 ## How to Cite

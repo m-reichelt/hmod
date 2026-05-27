@@ -52,13 +52,15 @@ class LegendreBasisEvaluator:
 
     def evaluate(self, t):
         """Evaluate the Legendre polynomial of given degree at x."""
-        evaluator = np.vectorize(lambda t : self._legendre_basis_evaluator.evaluate_at(t))
-        return evaluator(t)
+        t = np.asarray(t, dtype=float)
+        values = self._legendre_basis_evaluator.evaluate_many(np.ascontiguousarray(t.ravel()))
+        return np.asarray(values).reshape(t.shape)
 
     def evaluate_derivative(self, t):
         """Evaluate the Legendre polynomial of given degree at x."""
-        evaluator = np.vectorize(lambda t : self._legendre_basis_evaluator.evaluate_derivative_at(t))
-        return evaluator(t)
+        t = np.asarray(t, dtype=float)
+        values = self._legendre_basis_evaluator.evaluate_derivative_many(np.ascontiguousarray(t.ravel()))
+        return np.asarray(values).reshape(t.shape)
 
 
 
@@ -163,7 +165,6 @@ def get_legendre_derivative_matrix(nt: int, p: int, T: float, square: bool = Tru
                 blocks[m][n] = scale * (2*m + 1) * I
 
     return sp.bmat(blocks, format="csr")
-
 
 
 
