@@ -29,34 +29,43 @@ class DofRestrictorSymmetric(LinearOperator):
     def __init__(self, unrestricted_operator : LinearOperator
                  , restricted_dofs : np.ndarray, restricted_dof_values : np.ndarray):
         self.unrestricted_operator = unrestricted_operator
-        self.restricted_dofs = restricted_dofs
-        self.restricted_dof_values = restricted_dof_values
+        self.restricted_dofs = np.asarray(restricted_dofs, dtype=int).ravel()
+        self.restricted_dof_values = np.asarray(restricted_dof_values).ravel()
         self.dtype = np.float64  # or any other appropriate dtype
-        n_restricted_dofs = len(restricted_dofs)
+        n_restricted_dofs = len(self.restricted_dofs)
+        if self.restricted_dof_values.size != n_restricted_dofs:
+            raise ValueError(
+                "restricted_dof_values must have the same length as restricted_dofs "
+                f"({self.restricted_dof_values.size} != {n_restricted_dofs})"
+            )
         n_unrestricted_dofs = unrestricted_operator.shape[0]
         n_dofs = n_unrestricted_dofs - n_restricted_dofs
         #get bit array with active dofs
         self.active_dofs = np.ones(n_unrestricted_dofs, dtype=bool)
-        self.active_dofs[restricted_dofs] = False
+        self.active_dofs[self.restricted_dofs] = False
         #and the negation for setting values
         self.inactive_dofs = ~self.active_dofs
         shape = (n_dofs, n_dofs)
         super().__init__(dtype=self.dtype, shape=shape)
 
-    def _matvec(self, x):
-        """Apply the restricted operator to a reduced vector."""
-        x_full = np.zeros(self.unrestricted_operator.shape[0])
-        x_full[self.active_dofs] = x.ravel()
-        x_full[self.inactive_dofs] = self.restricted_dof_values
-        y_full = self.unrestricted_operator @ x_full
-        y_restricted = y_full[self.active_dofs]
-        return y_restricted
-    
     def _matmat(self, X):
         """Apply the restricted operator to multiple reduced vectors."""
-        #do this explicitly in sequential way to avoid shape issues
+        X = np.asarray(X)
+        if X.ndim != 2:
+            raise ValueError(f"_matmat expects a 2D array, got shape {X.shape!r}")
+        if X.shape[0] != self.shape[1]:
+            raise ValueError(
+                f"dimension mismatch in _matmat: operator shape {self.shape}, "
+                f"got X with shape {X.shape}"
+            )
+
+        n_full = self.unrestricted_operator.shape[0]
         ncols = X.shape[1]
-        result = np.zeros((self.shape[0], ncols))
-        for i in range(ncols):
-            result[:, i] = self._matvec(X[:, i])
-        return result
+        dtype = np.result_type(self.dtype, X.dtype, self.restricted_dof_values.dtype)
+
+        X_full = np.empty((n_full, ncols), dtype=dtype)
+        X_full[self.active_dofs, :] = X
+        X_full[self.restricted_dofs, :] = self.restricted_dof_values[:, None]
+
+        Y_full = self.unrestricted_operator @ X_full
+        return np.asarray(Y_full)[self.active_dofs, :]
