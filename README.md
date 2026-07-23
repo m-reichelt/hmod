@@ -1,9 +1,9 @@
 # hmodFFT
 
 `hmodFFT` is a Python/Rust package for matrix-free applications of temporal
-operators that involve the modified Hilbert transform. The package focuses on
-uniform partitions of an interval $I = (0, T)$ and on trial and test spaces given by
-piecewise polynomial bases.
+operators that involve the modified or periodic Hilbert transform. The package
+focuses on uniform partitions of an interval $I = (0, T)$ and on trial and test
+spaces given by piecewise polynomial bases.
 
 The main routines assemble or apply bilinear forms of the type
 
@@ -18,15 +18,19 @@ and
 ```
 
 where $\mathcal{H}_T$ denotes the modified Hilbert transform on
-$I = (0, T)$. Standard matrices are assembled as sparse SciPy matrices.
+$I = (0, T)$. Passing `periodic=True` selects the periodic transform
+$\mathcal H_{\mathrm{per}}$ and identifies the Lagrange degrees of freedom at
+$0$ and $T$. Standard matrices are assembled as sparse SciPy matrices.
 Hilbert-transform matrices are represented as SciPy `LinearOperator`s and use
-FFT-based transforms for efficient application.
+FFT-based transforms for efficient application. The default is
+`periodic=False`.
 
 ## Executable Notebooks
 
 | Notebook | Topic | Run in Binder |
 | --- | --- | --- |
 | [notebooks/ode_hybrid.ipynb](notebooks/ode_hybrid.ipynb) | Linear hybrid ODE solve with BPX-preconditioned GMRES. | [![Open in Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/m-reichelt/hmod/main?labpath=notebooks%2Fode_hybrid.ipynb) |
+| [notebooks/ode_hybrid_periodic.ipynb](notebooks/ode_hybrid_periodic.ipynb) | Periodic linear hybrid ODE solve with periodic FFT operators. | [![Open in Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/m-reichelt/hmod/main?labpath=notebooks%2Fode_hybrid_periodic.ipynb) |
 | [notebooks/ode_nonliner_hybrid.ipynb](notebooks/ode_nonliner_hybrid.ipynb) | Nonlinear hybrid ODE solve using weighted residual operators. | [![Open in Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/m-reichelt/hmod/main?labpath=notebooks%2Fode_nonliner_hybrid.ipynb) |
 
 Binder starts a temporary JupyterLab environment and installs the released
@@ -120,6 +124,13 @@ B = AH + spla.aslinearoperator(A) + mu * (MH + spla.aslinearoperator(M))
 The matrices are assembled before imposing homogeneous initial conditions. For
 a Lagrange space, the first degree of freedom is the value at $t = 0$.
 
+For a periodic problem, pass `periodic=True` to the standard and Hilbert matrix
+routines, basis transforms, prolongation matrices, and `BPXPreconditioner`.
+A degree-$p$ periodic Lagrange space on $n_t$ intervals has $n_t p$ degrees of
+freedom rather than $n_t p+1$: the right endpoint of the last interval wraps to
+the first degree of freedom. Periodicity is therefore built into the basis, and
+no initial degree of freedom is removed.
+
 ## Documentation
 
 The GitHub documentation is organized as plain Markdown:
@@ -128,10 +139,13 @@ The GitHub documentation is organized as plain Markdown:
 - [Mathematical background](docs/mathematical-background.md)
 - [Matrix and operator assembly guide](docs/matrix-assembly.md)
 - [Hybrid ODE worked example](docs/hybrid-ode-example.md)
+- [Periodic hybrid ODE notebook](notebooks/ode_hybrid_periodic.ipynb)
 - [Development notes](docs/development.md)
 
 The notebook [notebooks/ode_hybrid.ipynb](notebooks/ode_hybrid.ipynb) contains
-the same hybrid ODE example. The notebook
+the same hybrid ODE example, while
+[notebooks/ode_hybrid_periodic.ipynb](notebooks/ode_hybrid_periodic.ipynb)
+uses the periodic transform and periodic Lagrange topology. The notebook
 [notebooks/ode_nonliner_hybrid.ipynb](notebooks/ode_nonliner_hybrid.ipynb)
 contains a nonlinear variant using the weighted residual operators. GitHub
 renders notebooks statically; use the Binder links above or run them locally to

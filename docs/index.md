@@ -10,8 +10,11 @@ The central design idea is simple:
 - Lagrange bases are continuous on the time mesh and are represented through
   Legendre coefficients whenever an operation is easier in Legendre form.
 - Standard bilinear forms are assembled as SciPy sparse matrices.
-- Bilinear forms containing the modified Hilbert transform are exposed as
-  SciPy `LinearOperator`s and applied with FFT-based transforms.
+- Bilinear forms containing the modified or periodic Hilbert transform are
+  exposed as SciPy `LinearOperator`s and applied with FFT-based transforms.
+- `periodic=True` selects the periodic Fourier multiplier and identifies the
+  Lagrange degrees of freedom at $0$ and $T$; the default remains the
+  nonperiodic formulation.
 - Weighted residual operators project vectorized pointwise residual functions
   and return standard or Hilbert-tested residual vectors.
 
@@ -25,23 +28,29 @@ The central design idea is simple:
    combined into a complete solve.
 4. [Development notes](development.md) explain source installation and tests.
 
-The notebooks [../notebooks/ode_hybrid.ipynb](../notebooks/ode_hybrid.ipynb)
+The notebooks [../notebooks/ode_hybrid.ipynb](../notebooks/ode_hybrid.ipynb),
+[../notebooks/ode_hybrid_periodic.ipynb](../notebooks/ode_hybrid_periodic.ipynb),
 and [../notebooks/ode_nonliner_hybrid.ipynb](../notebooks/ode_nonliner_hybrid.ipynb)
-contain the linear and nonlinear hybrid ODE examples in notebook form. GitHub
-renders notebooks statically; to execute the cells, run them locally or open
-them through the Binder links in the project README.
+contain the nonperiodic linear, periodic linear, and nonlinear hybrid ODE
+examples. GitHub renders notebooks statically; to execute the cells, run them
+locally or open them through the Binder links in the project README.
 
 ## Main Modules
 
 | Module | Purpose |
 | --- | --- |
 | `hmod.standard_matrices` | Sparse matrices for standard derivative and mass bilinear forms. |
-| `hmod.hilbert_matrices` | FFT-backed `LinearOperator`s for bilinear forms containing `\mathcal{H}_T`. |
+| `hmod.hilbert_matrices` | FFT-backed `LinearOperator`s for bilinear forms containing `\mathcal{H}_T` or `\mathcal H_{\mathrm{per}}`. |
 | `hmod.non_linear_operators` | Weighted residual helpers for nonlinear or coefficient-dependent terms. |
 | `hmod.polynomial_bases` | Basis transforms, evaluators, prolongation matrices, and derivative matrices. |
 | `hmod.dof_handling` | Helpers for imposing fixed degrees of freedom in matrix-free systems. |
 | `hmod.preconditioning` | BPX preconditioner and GMRES iteration counter. |
 | `hmod.norms` | Numerical `L2` norm and `H^{1/2}` seminorm helpers. |
+
+A degree-$p$ continuous Lagrange space has `nt * p + 1` degrees of freedom in
+the nonperiodic formulation and `nt * p` in the periodic formulation. Periodic
+matrix, basis-transform, prolongation, norm, and BPX APIs use the common
+`periodic=True` option.
 
 ## What The Package Builds
 

@@ -24,6 +24,11 @@ The available basis combinations are:
 The first basis name is the trial basis. The second basis name is the test
 basis. Rows correspond to tests and columns correspond to trials.
 
+The standard and Hilbert assembly routines accept `periodic=False` by default.
+Set `periodic=True` for periodic boundary topology. On every Lagrange side this
+identifies the endpoint degrees of freedom and changes the corresponding
+dimension from `nt * p + 1` to `nt * p`.
+
 ## Standard Matrices
 
 Standard matrices live in `hmod.standard_matrices`. They return sparse CSR
@@ -83,8 +88,9 @@ A^{\mathcal{H}}_{r,m}
 ```
 
 They are matrix-free because the corresponding operators are dense in the
-physical basis. Internally, the package uses sine/cosine transforms and a
-zeta-series kernel to apply the modified Hilbert transform efficiently.
+physical basis. For `periodic=False`, the package uses type-IV sine/cosine
+transforms and a zeta-series kernel. For `periodic=True`, it uses ordinary
+length-`nt` FFTs and frequency-wise dense kernels for the periodic transform.
 
 Example: assemble the Hilbert derivative and Hilbert mass parts in continuous
 Lagrange basis.
@@ -114,7 +120,31 @@ MH_t = get_hilbert_matrix_for_derivatives_lagrange_lagrange(
 The Hilbert routines use the same argument names and order as the corresponding
 standard matrix routines:
 `polynomial_degree_trial`, `polynomial_degree_test`, `derivatives_trial`,
-`derivatives_test`, `nt`, and `T`.
+`derivatives_test`, `nt`, `T`, and the optional `periodic` flag.
+
+## Periodic Assembly
+
+The periodic transform uses Fourier coefficients defined with a negative
+exponential and the multiplier
+
+```math
+\mathcal H_{\mathrm{per}}e^{i\omega_k t}
+=i\,\operatorname{sgn}(k)e^{i\omega_k t},
+\qquad
+\mathcal H_{\mathrm{per}}1=0.
+```
+
+The implementation uses an unnormalized forward FFT and an inverse FFT
+normalized by `1 / nt`. The zero continuous frequency is omitted, but FFT bin
+zero is retained because it also aliases the nonzero frequencies
+$\pm n_t,\pm2n_t,\ldots$.
+
+Add `periodic=True` to both standard and Hilbert calls in the examples above.
+For degree-$p$ Lagrange trial and test spaces, the resulting operators have
+shape `(nt * p, nt * p)`. Periodicity is already encoded, so do not remove an
+endpoint degree of freedom. The periodic standard derivative and Hilbert mass
+matrices are skew-symmetric, while the derivative-Hilbert matrix is symmetric
+positive semidefinite.
 
 ## Combining Sparse Matrices And Linear Operators
 
@@ -185,6 +215,10 @@ For a homogeneous Lagrange initial condition, remove the first test functional:
 rhs0 = rhs[1:]
 ```
 
+For a periodic Lagrange test space, instead pass `periodic=True` to both
+Legendre-Lagrange calls above and use the complete `rhs`. It then has length
+`nt * p`.
+
 ## Weighted Residuals
 
 Nonlinear and coefficient-dependent terms often start from a pointwise
@@ -198,6 +232,10 @@ There are two residual types:
 | --- | --- |
 | `ResidualType.Standard` | `\langle g, v_h \rangle_I` |
 | `ResidualType.Hilbert` | `\langle g, \mathcal{H}_T v_h \rangle_I` |
+
+Pass `periodic=True` to `WeightedResidual` when its Lagrange test space is
+periodic. The Hilbert variant then uses $\mathcal H_{\mathrm{per}}$, and both
+variants return `nt * p` test entries.
 
 The routine is useful when assembling a nonlinear matrix-free action. The
 residual function should accept NumPy arrays of points and return values with
@@ -246,7 +284,12 @@ from hmod.polynomial_bases import (
     get_lagrange_to_legendre_matrix,
 )
 
-T_lag_to_leg = get_lagrange_to_legendre_matrix(polynomial_degree=p, nt=nt)
+periodic = False  # set True for endpoint-identified Lagrange coefficients
+T_lag_to_leg = get_lagrange_to_legendre_matrix(
+    polynomial_degree=p,
+    nt=nt,
+    periodic=periodic,
+)
 u_legendre = T_lag_to_leg @ u_lagrange
 
 evaluator = LegendreBasisEvaluator(
@@ -260,6 +303,23 @@ values = evaluator.evaluate(t_points)
 ```
 
 The evaluator expects Legendre coefficients in degree-major ordering.
+For `periodic=True`, `u_lagrange` has `nt * p` entries and the transform has
+shape `(nt * (p + 1), nt * p)`. The evaluator itself needs no periodic flag:
+endpoint identification is already present in the Legendre coefficients.
+
+The periodic $H^{1/2}$ error can be evaluated with
+
+```python
+from hmod.norms import compute_h12_seminorm
+
+error_h12 = compute_h12_seminorm(error, T=T, periodic=True)
+```
+
+This branch samples without duplicating the endpoint and uses the periodic
+Fourier seminorm.
+
+See [the periodic hybrid ODE notebook](../notebooks/ode_hybrid_periodic.ipynb)
+for a complete matrix-free solve.
 
 ## Preconditioning
 
@@ -278,6 +338,7 @@ BPX = BPXPreconditioner(
     polynomial_degree=p,
     nt_coarse=nt_coarsest,
     T=T,
+    periodic=False,
 )
 
 counter = GMRESCounter(print_residual=True)
@@ -285,7 +346,10 @@ sol, info = spla.gmres(B0, rhs0, M=BPX, callback=counter, rtol=1e-10)
 ```
 
 `BPXPreconditioner` acts on the reduced vector after the homogeneous initial
-condition has been removed.
+condition has been removed. For a periodic system, construct it with
+`periodic=True`; its mass and prolongation matrices then have periodic topology,
+and it acts on the complete `nt * p` vector. Solve the unreduced system
+`B, rhs` in that case.
 
 ## Converting Operators To Dense Matrices
 

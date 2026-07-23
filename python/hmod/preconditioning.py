@@ -60,9 +60,10 @@ class BPXPreconditioner(LinearOperator):
     prolongates the result to the finest level. The level contributions are
     summed in the standard BPX fashion.
 
-    The first temporal DOF is removed on every level, which corresponds to a
-    homogeneous initial condition such as ``u(0)=0``. Consequently, the
-    exposed operator acts on the already reduced finest-level vector.
+    By default, the first temporal DOF is removed on every level, which
+    corresponds to a homogeneous initial condition such as ``u(0)=0``.
+    With ``periodic=True``, endpoint identification is built into the
+    Lagrange space and no DOF is removed.
 
     Parameters
     ----------
@@ -78,8 +79,19 @@ class BPXPreconditioner(LinearOperator):
         Number of time intervals on the coarsest mesh.
     T:
         Final time, i.e. the interval is ``(0, T)``.
+    periodic:
+        Use periodic Lagrange spaces and periodic prolongation.
     """
-    def __init__(self, mu : float, n_refinements : int, sobolev_exponent : float, polynomial_degree : int, nt_coarse : int, T : float):
+    def __init__(
+        self,
+        mu: float,
+        n_refinements: int,
+        sobolev_exponent: float,
+        polynomial_degree: int,
+        nt_coarse: int,
+        T: float,
+        periodic: bool = False,
+    ):
         from hmod.standard_matrices import get_lagrange_lagrange_matrix_for_derivatives
         import hmod.polynomial_bases as pb
         nt_finest = nt_coarse * (2**n_refinements)
@@ -87,11 +99,25 @@ class BPXPreconditioner(LinearOperator):
         for i in range(n_refinements+1):
             nt = nt_coarse * (2**i)
             h = T/nt
-            M = get_lagrange_lagrange_matrix_for_derivatives(polynomial_degree, polynomial_degree, 0, 0, nt, T)
-            P = pb.get_lagrange_prolongation_matrix(nt, nt_finest, polynomial_degree)
-            #homogenize initial conditions
-            M = M[1:,:][:,1:]
-            P = P[1:,:][:,1:]
+            M = get_lagrange_lagrange_matrix_for_derivatives(
+                polynomial_degree,
+                polynomial_degree,
+                0,
+                0,
+                nt,
+                T,
+                periodic=periodic,
+            )
+            P = pb.get_lagrange_prolongation_matrix(
+                nt,
+                nt_finest,
+                polynomial_degree,
+                periodic=periodic,
+            )
+            if not periodic:
+                # Homogenize the initial condition in the non-periodic space.
+                M = M[1:, :][:, 1:]
+                P = P[1:, :][:, 1:]
             M_weighted = M *(mu + h**(-2.0 * sobolev_exponent))
             M_weighted_inverse_op = LU_solver(M_weighted)
             P = scipy.sparse.linalg.aslinearoperator(P)
@@ -107,7 +133,7 @@ class BPXPreconditioner(LinearOperator):
         super().__init__(dtype=self.dtype, shape=shape)
 
     def _matvec(self, x):
-        """Apply the BPX preconditioner to a reduced finest-level vector."""
+        """Apply the BPX preconditioner to the active finest-level vector."""
         x = np.array(x)
         x2 = self.B_inv_op @ x
         return x2

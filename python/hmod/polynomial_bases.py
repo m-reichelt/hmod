@@ -64,16 +64,63 @@ class LegendreBasisEvaluator:
 
 
 
-def get_lagrange_to_legendre_matrix(polynomial_degree : int, nt : int):
-    from hmod.hmod import lagrange_to_legendre_basis_transformation
-    from hmod.matrix_tools import triplets_to_linear_operator
-    ri, ci, vals = lagrange_to_legendre_basis_transformation(polynomial_degree, nt)
-    return triplets_to_linear_operator(ri, ci, vals)
+def get_lagrange_to_legendre_matrix(
+    polynomial_degree: int,
+    nt: int,
+    periodic: bool = False,
+):
+    """Map continuous Lagrange DOFs to degree-major Legendre coefficients.
 
-def get_langrange_points(polynomial_degree : int, nt : int, T : float):
-    from hmod.hmod import get_lagrange_points
-    points = get_lagrange_points(polynomial_degree, nt, T)
+    A non-periodic Lagrange vector has ``nt*polynomial_degree + 1`` entries.
+    With ``periodic=True``, the endpoint at ``T`` is identified with the
+    endpoint at ``0`` and the vector has ``nt*polynomial_degree`` entries.
+    """
+    if periodic and polynomial_degree < 1:
+        raise ValueError("periodic Lagrange spaces require polynomial_degree >= 1")
+    if periodic and nt < 1:
+        raise ValueError("periodic Lagrange spaces require nt >= 1")
+
+    from hmod.hmod import lagrange_to_legendre_basis_transformation
+    from scipy.sparse import coo_matrix
+
+    ri, ci, vals = lagrange_to_legendre_basis_transformation(
+        polynomial_degree, nt, periodic
+    )
+    n_rows = (polynomial_degree + 1) * nt
+    n_cols = polynomial_degree * nt + (0 if periodic else 1)
+    return coo_matrix(
+        (vals, (ri, ci)), shape=(n_rows, n_cols)
+    ).tocsr()
+
+
+def get_lagrange_points(
+    polynomial_degree: int,
+    nt: int,
+    T: float,
+    periodic: bool = False,
+):
+    """Return global Lagrange points, omitting ``T`` in the periodic space."""
+    if periodic and polynomial_degree < 1:
+        raise ValueError("periodic Lagrange spaces require polynomial_degree >= 1")
+    if periodic and nt < 1:
+        raise ValueError("periodic Lagrange spaces require nt >= 1")
+
+    from hmod.hmod import get_lagrange_points as rust_get_lagrange_points
+
+    points = rust_get_lagrange_points(polynomial_degree, nt, T, periodic)
     return np.array(points)
+
+
+def get_langrange_points(
+    polynomial_degree: int,
+    nt: int,
+    T: float,
+    periodic: bool = False,
+):
+    """Backward-compatible alias for the historically misspelled name."""
+    return get_lagrange_points(
+        polynomial_degree, nt, T, periodic=periodic
+    )
 
 
 
@@ -120,16 +167,38 @@ def legendre_refinement_matrix(polynomial_degree : int , nt_coarse : int):
     refinement_matrix = refinement_matrix.tocsr()
     return refinement_matrix
 
-def get_lagrange_prolongation_matrix(nt_coarse : int, nt_fine : int, polynomial_degree : int):
+def get_lagrange_prolongation_matrix(
+    nt_coarse: int,
+    nt_fine: int,
+    polynomial_degree: int,
+    periodic: bool = False,
+):
     """Get the prolongation matrix from coarse to fine grid in Lagrange basis."""
+    if periodic and polynomial_degree < 1:
+        raise ValueError("periodic Lagrange spaces require polynomial_degree >= 1")
+    if periodic and (nt_coarse < 1 or nt_fine < 1):
+        raise ValueError("periodic Lagrange prolongation requires positive interval counts")
+
     from hmod.hmod import lagrange_prolongation_matrix
     from scipy.sparse import coo_matrix
-    row_indices, col_indices, values = lagrange_prolongation_matrix(nt_coarse, nt_fine, polynomial_degree)
-    shape = (nt_fine*polynomial_degree + 1, nt_coarse*polynomial_degree + 1)
+    row_indices, col_indices, values = lagrange_prolongation_matrix(
+        nt_coarse, nt_fine, polynomial_degree, periodic
+    )
+    endpoint_dofs = 0 if periodic else 1
+    shape = (
+        nt_fine * polynomial_degree + endpoint_dofs,
+        nt_coarse * polynomial_degree + endpoint_dofs,
+    )
     return coo_matrix((values, (row_indices, col_indices)), shape=shape).tocsr()
 
 
-def get_legendre_derivative_matrix(nt: int, p: int, T: float, square: bool = True):
+def get_legendre_derivative_matrix(
+    nt: int,
+    p: int,
+    T: float,
+    square: bool = True,
+    periodic: bool = False,
+):
     """
     Global sparse matrix for d/dt on piecewise-Legendre coefficients
     with degree-major ordering:
@@ -148,6 +217,9 @@ def get_legendre_derivative_matrix(nt: int, p: int, T: float, square: bool = Tru
     square : bool
         If False, return the natural rectangular map into degree <= p-1.
         If True, append one zero block-row to make the matrix square.
+    periodic : bool
+        Accepted for API consistency. Differentiation in the discontinuous
+        local Legendre representation is the same for both topologies.
     """
     nrows_deg = p + 1 if square else p
     ncols_deg = p + 1
@@ -165,10 +237,6 @@ def get_legendre_derivative_matrix(nt: int, p: int, T: float, square: bool = Tru
                 blocks[m][n] = scale * (2*m + 1) * I
 
     return sp.bmat(blocks, format="csr")
-
-
-
-
 
 
 

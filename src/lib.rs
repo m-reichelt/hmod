@@ -6,6 +6,7 @@ mod sparse_matrix_tools;
 
 use nalgebra::{DMatrix, DMatrixView};
 use pyo3::buffer::PyBuffer;
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use crate::sparse_matrix_tools::csr_to_triplets;
 
@@ -90,27 +91,57 @@ impl LegendreBasisEvaluator {
     }
 }
 
-#[pyfunction]
-fn lagrange_to_legendre_basis_transformation(degree : usize, n_t : usize) -> PyResult<(Vec<usize>, Vec<usize>, Vec<f64>)> {
+#[pyfunction(signature = (degree, n_t, periodic=false))]
+fn lagrange_to_legendre_basis_transformation(degree : usize, n_t : usize, periodic : bool) -> PyResult<(Vec<usize>, Vec<usize>, Vec<f64>)> {
+    if periodic && degree == 0 {
+        return Err(PyValueError::new_err(
+            "Periodic Lagrange bases require polynomial degree at least 1",
+        ));
+    }
+    if periodic && n_t == 0 {
+        return Err(PyValueError::new_err(
+            "Periodic Lagrange bases require at least one interval",
+        ));
+    }
     let T = 1.0; //does not matter for matrix
-    let lagrange_basis = piecewise_polynomials::LagrangeBasis::new(degree, n_t, T);
+    let lagrange_basis = piecewise_polynomials::LagrangeBasis::new(degree, n_t, T, periodic);
     let transformation_matrix = lagrange_basis.get_transormation_matrix_to_legendre();
     let (row_indices, col_indices, values) = csr_to_triplets(&transformation_matrix);
     Ok((row_indices, col_indices, values))
 }
 
-#[pyfunction]
-fn lagrange_prolongation_matrix(nt_coarse : usize, nt_fine : usize, degree : usize) -> PyResult<(Vec<usize>, Vec<usize>, Vec<f64>)> {
+#[pyfunction(signature = (nt_coarse, nt_fine, degree, periodic=false))]
+fn lagrange_prolongation_matrix(nt_coarse : usize, nt_fine : usize, degree : usize, periodic : bool) -> PyResult<(Vec<usize>, Vec<usize>, Vec<f64>)> {
+    if periodic && degree == 0 {
+        return Err(PyValueError::new_err(
+            "Periodic Lagrange bases require polynomial degree at least 1",
+        ));
+    }
+    if periodic && (nt_coarse == 0 || nt_fine == 0) {
+        return Err(PyValueError::new_err(
+            "Periodic Lagrange prolongation requires positive interval counts",
+        ));
+    }
     let T = 1.0; //does not matter for matrix
-    let lagrange_basis = piecewise_polynomials::LagrangeBasis::new(degree, nt_coarse, T);
+    let lagrange_basis = piecewise_polynomials::LagrangeBasis::new(degree, nt_coarse, T, periodic);
     let prolongation_matrix = lagrange_basis.get_prolongation_matrix_to(nt_fine);
     let (row_indices, col_indices, values) = csr_to_triplets(&prolongation_matrix);
     Ok((row_indices, col_indices, values))
 }
 
-#[pyfunction]
-fn get_lagrange_points(degree : usize, n_t : usize, T : f64) -> PyResult<Vec<f64>> {
-    let lagrange_basis = piecewise_polynomials::LagrangeBasis::new(degree, n_t, T);
+#[pyfunction(signature = (degree, n_t, T, periodic=false))]
+fn get_lagrange_points(degree : usize, n_t : usize, T : f64, periodic : bool) -> PyResult<Vec<f64>> {
+    if periodic && degree == 0 {
+        return Err(PyValueError::new_err(
+            "Periodic Lagrange bases require polynomial degree at least 1",
+        ));
+    }
+    if periodic && n_t == 0 {
+        return Err(PyValueError::new_err(
+            "Periodic Lagrange bases require at least one interval",
+        ));
+    }
+    let lagrange_basis = piecewise_polynomials::LagrangeBasis::new(degree, n_t, T, periodic);
     let points = lagrange_basis.get_lagrange_points().clone();
     Ok(points)
 }

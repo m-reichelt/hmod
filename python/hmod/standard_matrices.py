@@ -98,7 +98,8 @@ def get_kernel_legendre_legendre(polynomial_degree : int, derivatives_trial : in
 
 
 def get_legendre_legendre_matrix_for_derivatives(polynomial_degree_trial : int, polynomial_degree_test : int
-                                                 ,derivatives_trial : int, derivatives_test : int, nt : int, T : float):
+                                                 ,derivatives_trial : int, derivatives_test : int, nt : int, T : float,
+                                                 periodic : bool = False):
     r"""Return a standard matrix in Legendre trial/test bases.
 
     Rows correspond to test basis functions and columns to trial basis
@@ -116,7 +117,8 @@ def get_legendre_legendre_matrix_for_derivatives(polynomial_degree_trial : int, 
     return K
 
 def get_legendre_lagrange_matrix_for_derivatives(polynomial_degree_trial : int, polynomial_degree_test : int
-                                                 ,derivatives_trial : int, derivatives_test : int, nt : int, T : float):
+                                                 ,derivatives_trial : int, derivatives_test : int, nt : int, T : float,
+                                                 periodic : bool = False):
     r"""Return a standard matrix with Legendre trial and Lagrange test basis.
 
     Rows correspond to Lagrange test functions and columns to Legendre trial
@@ -129,17 +131,21 @@ def get_legendre_lagrange_matrix_for_derivatives(polynomial_degree_trial : int, 
     Lagrange test basis function.
     """
     #first get the transformation matrix from lagrange to legendre for the test functions
-    Ttest = get_lagrange_to_legendre_matrix(polynomial_degree_test, nt)
+    Ttest = get_lagrange_to_legendre_matrix(
+        polynomial_degree_test, nt, periodic=periodic
+    )
     #get the legendre legendre matrix
     K_ll = get_legendre_legendre_matrix_for_derivatives(polynomial_degree_trial, polynomial_degree_test,
-                                                        derivatives_trial, derivatives_test, nt, T)
+                                                        derivatives_trial, derivatives_test, nt, T,
+                                                        periodic=periodic)
     #put together the legendre lagrange matrix
     K = Ttest.transpose() @ K_ll
     K = K.tocsr()
     return K
 
 def get_lagrange_legendre_matrix_for_derivatives(polynomial_degree_trial : int, polynomial_degree_test : int
-                                                 ,derivatives_trial : int, derivatives_test : int, nt : int, T : float):
+                                                 ,derivatives_trial : int, derivatives_test : int, nt : int, T : float,
+                                                 periodic : bool = False):
     r"""Return a standard matrix with Lagrange trial and Legendre test basis.
 
     Rows correspond to Legendre test functions and columns to Lagrange trial
@@ -152,17 +158,21 @@ def get_lagrange_legendre_matrix_for_derivatives(polynomial_degree_trial : int, 
     Legendre test basis function.
     """
     #first get the transformation matrix from lagrange to legendre for the test functions
-    Ttrial = get_lagrange_to_legendre_matrix(polynomial_degree_trial, nt)
+    Ttrial = get_lagrange_to_legendre_matrix(
+        polynomial_degree_trial, nt, periodic=periodic
+    )
     #get the legendre legendre matrix
     K_ll = get_legendre_legendre_matrix_for_derivatives(polynomial_degree_trial, polynomial_degree_test,
-                                                        derivatives_trial, derivatives_test, nt, T)
+                                                        derivatives_trial, derivatives_test, nt, T,
+                                                        periodic=periodic)
     #put together the legendre lagrange matrix
     K = K_ll @ Ttrial
     K = K.tocsr()
     return K
 
 def get_lagrange_lagrange_matrix_for_derivatives(polynomial_degree_trial : int, polynomial_degree_test : int
-                                                 ,derivatives_trial : int, derivatives_test : int, nt : int, T : float):
+                                                 ,derivatives_trial : int, derivatives_test : int, nt : int, T : float,
+                                                 periodic : bool = False):
     r"""Return a standard matrix with Lagrange trial/test bases.
 
     Rows correspond to Lagrange test functions and columns to Lagrange trial
@@ -177,10 +187,13 @@ def get_lagrange_lagrange_matrix_for_derivatives(polynomial_degree_trial : int, 
     zero give the mass term ``<u_h, v_h>_I``.
     """
     #first get the transformation matrix from lagrange to legendre for the trial function
-    Ttrial = get_lagrange_to_legendre_matrix(polynomial_degree_trial, nt)
+    Ttrial = get_lagrange_to_legendre_matrix(
+        polynomial_degree_trial, nt, periodic=periodic
+    )
     #then get the respective legendre_lagrange matrix
     K_lagl = get_legendre_lagrange_matrix_for_derivatives(polynomial_degree_trial, polynomial_degree_test,
-                                                          derivatives_trial, derivatives_test, nt, T)
+                                                          derivatives_trial, derivatives_test, nt, T,
+                                                          periodic=periodic)
     #put together the lagrange lagrange matrix
     K = K_lagl @ Ttrial
     K = K.tocsr()
@@ -188,7 +201,14 @@ def get_lagrange_lagrange_matrix_for_derivatives(polynomial_degree_trial : int, 
 
 
 
-def rhs_quadrature(f, nt : int, polynomial_degree_test : int, T : float, quad_order : int = None) -> np.ndarray:
+def rhs_quadrature(
+    f,
+    nt: int,
+    polynomial_degree_test: int,
+    T: float,
+    quad_order: int = None,
+    periodic: bool = False,
+) -> np.ndarray:
     r"""Compute the Legendre load vector by quadrature.
 
     The returned vector contains entries
@@ -197,6 +217,8 @@ def rhs_quadrature(f, nt : int, polynomial_degree_test : int, T : float, quad_or
 
     where ``psi_r`` are piecewise Legendre test basis functions of degree at
     most ``polynomial_degree_test``. The result uses degree-major ordering.
+    ``periodic`` is accepted for API consistency; the discontinuous local
+    Legendre space and this quadrature are identical in both topologies.
     """
     from numpy.polynomial.legendre import leggauss, legvander
     #get quadrature points and weights on [-1,1]
@@ -223,7 +245,14 @@ def rhs_quadrature(f, nt : int, polynomial_degree_test : int, T : float, quad_or
     return rhs
 
 
-def project_rhs_onto_legendre_basis(f, nt : int, polynomial_degree_test : int, T : float, quad_order : int = None) -> np.ndarray:
+def project_rhs_onto_legendre_basis(
+    f,
+    nt: int,
+    polynomial_degree_test: int,
+    T: float,
+    quad_order: int = None,
+    periodic: bool = False,
+) -> np.ndarray:
     r"""Return Legendre coefficients of the L2 projection of a right-hand side.
 
     This computes ``f_h`` in the piecewise Legendre space such that
@@ -234,8 +263,16 @@ def project_rhs_onto_legendre_basis(f, nt : int, polynomial_degree_test : int, T
     ``polynomial_degree_test``. The returned array contains the coefficients
     of ``f_h`` in degree-major ordering.
     """
-    rhs_legendre = rhs_quadrature(f, nt, polynomial_degree_test, T, quad_order)
+    rhs_legendre = rhs_quadrature(
+        f,
+        nt,
+        polynomial_degree_test,
+        T,
+        quad_order,
+        periodic=periodic,
+    )
     M = get_legendre_legendre_matrix_for_derivatives(polynomial_degree_trial=polynomial_degree_test, polynomial_degree_test=polynomial_degree_test,
-                                                     derivatives_trial=0, derivatives_test=0, nt=nt, T=T)
+                                                     derivatives_trial=0, derivatives_test=0, nt=nt, T=T,
+                                                     periodic=periodic)
     rhs_legendre = scipy.sparse.linalg.spsolve(M, rhs_legendre)
     return rhs_legendre
