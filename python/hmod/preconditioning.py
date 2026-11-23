@@ -54,11 +54,11 @@ class BPXPreconditioner(LinearOperator):
     ``H^{1/2}(I) + mu L2(I)`` norm induced by the formulation.
 
     The implementation builds a hierarchy of uniformly refined temporal
-    meshes from ``nt_coarse`` to ``nt_coarse * 2**n_refinements``. On each
-    level it forms the Lagrange mass matrix ``M_l``, weights it by
-    ``mu + h_l**(-2*s)``, applies a sparse LU inverse on that level, and
-    prolongates the result to the finest level. The level contributions are
-    summed in the standard BPX fashion.
+    meshes from ``nt_coarse`` to ``nt_coarse * 2**n_refinements``. On level
+    ``i``, the sparse LU solve applies the inverse Lagrange mass matrix
+    with weight ``w_i = 1 / (mu + h_i**(-2*s))``. In the discrete multilevel
+    inverse (48), the prolongated inverse mass matrices have weights
+    ``w_i - w_{i+1}`` on coarser levels and ``w_L`` on the finest level ``L``.
 
     By default, the first temporal DOF is removed on every level, which
     corresponds to a homogeneous initial condition such as ``u(0)=0``.
@@ -72,7 +72,7 @@ class BPXPreconditioner(LinearOperator):
     n_refinements:
         Number of uniform refinements from the coarsest to finest mesh.
     sobolev_exponent:
-        Sobolev order ``s`` used in the BPX level weight ``h_l**(-2*s)``.
+        Sobolev order ``s`` used to compute the weights ``w_i``.
     polynomial_degree:
         Polynomial degree of the temporal Lagrange space on each interval.
     nt_coarse:
@@ -122,6 +122,10 @@ class BPXPreconditioner(LinearOperator):
             M_weighted_inverse_op = LU_solver(M_weighted)
             P = scipy.sparse.linalg.aslinearoperator(P)
             level_op = P @ M_weighted_inverse_op @ P.transpose()
+            if i < n_refinements:
+                a = h ** (-2.0 * sobolev_exponent)
+                a_next = (h / 2.0) ** (-2.0 * sobolev_exponent)
+                level_op = ((a_next - a) / (mu + a_next)) * level_op
             level_ops.append(level_op)
         #sum all level operators
         self.B_inv_op = level_ops[0]
